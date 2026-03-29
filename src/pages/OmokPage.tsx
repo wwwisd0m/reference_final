@@ -424,6 +424,7 @@ export function OmokPage() {
         online={online}
         countdownSec={countdownSec}
         finalWaiting={finalWaiting}
+        opponentName={oppName}
         onRunwayOk={onRunwayOk}
         onFinal={onFinal}
         onLeaveFirst={onLeaveFirst}

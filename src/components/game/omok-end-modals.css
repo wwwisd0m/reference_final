@@ -10,83 +10,157 @@
   box-sizing: border-box;
 }
 
-.omok-end-card {
-  width: 100%;
-  max-width: 300px;
-  padding: 22px 20px 18px;
-  border-radius: 8px;
-  background: var(--skin-page-bg, #fff);
-  border: 1px solid var(--skin-input-border, #e6e6e6);
-  color: var(--skin-text, #333);
+.omok-end-card--figma {
+  position: relative;
+  width: 232px;
+  max-width: 100%;
   box-sizing: border-box;
+  padding: 36px 16px 20px;
+  border-radius: 0;
+  background: #fff;
+  border: none;
+  color: #646464;
+  font-family: Pretendard, system-ui, sans-serif;
 }
 
-.omok-end-card__title {
-  margin: 0 0 10px;
-  font-size: 18px;
+.omok-end-timer {
+  position: absolute;
+  top: 7px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #b3b3b3;
+}
+
+.omok-end-timer__icon {
+  flex-shrink: 0;
+}
+
+.omok-end-timer__text {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: -0.1px;
+  line-height: normal;
+  min-width: 28px;
+  text-align: center;
+}
+
+.omok-end-figma-title {
+  margin: 0 0 0;
+  padding: 0;
+  font-size: 16px;
   font-weight: 700;
+  letter-spacing: 0.08px;
   text-align: center;
+  line-height: normal;
+  color: #646464;
 }
 
-.omok-end-card__desc {
-  margin: 0 0 18px;
-  font-size: 12px;
+.omok-end-figma-title--practice {
+  margin-bottom: 8px;
+}
+
+.omok-end-practice-note {
+  margin: 0 0 16px;
+  font-size: 10px;
+  font-weight: 500;
   line-height: 1.45;
-  color: var(--skin-muted, #888);
   text-align: center;
+  color: #949494;
+  letter-spacing: -0.1px;
 }
 
-.omok-end-card__actions {
+.omok-end-runway-desc {
+  margin: 10px 0 0;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: normal;
+  text-align: center;
+  letter-spacing: -0.1px;
+  color: #646464;
+}
+
+.omok-end-runway-desc__name {
+  font-weight: 600;
+  letter-spacing: -0.16px;
+}
+
+.omok-end-figma-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 18px;
 }
 
-.omok-end-card__actions--row {
-  flex-direction: row;
+.omok-end-figma-actions--single {
+  margin-top: 22px;
+}
+
+.omok-end-pill {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.omok-end-btn {
+  width: 148px;
+  height: 35px;
+  margin: 0;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 17.5px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 10px 16px;
-  border-radius: 6px;
+  letter-spacing: -0.1px;
+  line-height: normal;
   cursor: pointer;
-  border: 1px solid transparent;
   transition:
-    filter 0.18s ease,
-    background 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease;
+    filter 0.15s ease,
+    opacity 0.15s ease;
 }
 
-.omok-end-btn:disabled {
-  opacity: 0.55;
+.omok-end-pill--border {
+  background: #fff;
+  border: 1px solid #eaeaea;
+  color: #949494;
+}
+
+.omok-end-pill--border:not(:disabled):hover {
+  filter: brightness(0.97);
+}
+
+.omok-end-pill--border:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-.omok-end-btn--primary {
-  background: var(--skin-top-bar-bg, #2b8453);
-  color: #fff;
-  border-color: transparent;
+.omok-end-pill--waiting {
+  background: #f6f6f6;
+  color: #a0a0a0;
+  cursor: default;
+  user-select: none;
 }
 
-.omok-end-btn--primary:not(:disabled):hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+.omok-end-pill--ok {
+  width: 81px;
+  height: auto;
+  min-height: 36px;
+  padding: 10px 16px;
+  border-radius: 100px;
+  border: 1px solid #eaeaea;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06px;
+  color: #949494;
 }
 
-.omok-end-btn--ghost {
-  background: transparent;
-  color: var(--skin-text, #333);
-  border-color: var(--skin-input-border, #ddd);
+.omok-end-pill--ok:hover {
+  filter: brightness(0.97);
 }
 
-.omok-end-btn--ghost:not(:disabled):hover {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: var(--skin-text, #555);
+.omok-end-wait-dots {
+  display: inline;
+  font-weight: 600;
 }

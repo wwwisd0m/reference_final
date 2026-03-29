@@ -1,11 +1,14 @@
 import './omok-end-modals.css';
+import { useWaitingDotsCount } from '../../hooks/useWaitingDots';
 
 type Props = {
   variant: 'runway' | 'win' | 'lose' | 'draw' | null;
   online: boolean;
   countdownSec: number;
-  /** 내가 Final을 눌러 상대를 기다리는 중 */
+  /** 내가 재매칭(Final)을 눌러 상대를 기다리는 중 */
   finalWaiting: boolean;
+  /** 상대 이탈 모달 본문용 닉네임 */
+  opponentName: string;
   onRunwayOk: () => void;
   onFinal: () => void;
   onLeaveFirst: () => void;
@@ -13,11 +16,33 @@ type Props = {
   practiceOnHome: () => void;
 };
 
+function formatMmSs(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function OmokEndTimerIcon() {
+  return (
+    <svg className="omok-end-timer__icon" width="11" height="11" viewBox="0 0 11 11" aria-hidden>
+      <circle cx="5.5" cy="5.5" r="4.25" fill="none" stroke="currentColor" strokeWidth="1" />
+      <path d="M5.5 3.25V5.5h2" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function OpponentWaitingDots() {
+  const n = useWaitingDotsCount();
+  return <span className="omok-end-wait-dots">{'.'.repeat(n)}</span>;
+}
+
 export function OmokEndModals({
   variant,
   online,
   countdownSec,
   finalWaiting,
+  opponentName,
   onRunwayOk,
   onFinal,
   onLeaveFirst,
@@ -29,42 +54,17 @@ export function OmokEndModals({
   if (variant === 'runway') {
     return (
       <div className="omok-end-overlay" role="presentation">
-        <div id="runway" className="omok-end-card" role="alertdialog" aria-modal="true" aria-labelledby="runway-title">
-          <h2 id="runway-title" className="omok-end-card__title">
-            상대가 게임을 중단했습니다
+        <div id="runway" className="omok-end-card omok-end-card--figma" role="alertdialog" aria-modal="true" aria-labelledby="runway-title">
+          <h2 id="runway-title" className="omok-end-figma-title">
+            YOU WIN
           </h2>
-          <p className="omok-end-card__desc">상대방이 방을 나갔습니다.</p>
-          <button type="button" className="omok-end-btn omok-end-btn--primary" onClick={onRunwayOk}>
-            OK
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!online) {
-    const title =
-      variant === 'win'
-        ? '흑 승리'
-        : variant === 'lose'
-          ? '백 승리'
-          : '무승부';
-    return (
-      <div className="omok-end-overlay" role="presentation">
-        <div
-          id={variant === 'draw' ? 'draw' : variant === 'win' ? 'win' : 'lose'}
-          className="omok-end-card"
-          role="alertdialog"
-          aria-modal="true"
-        >
-          <h2 className="omok-end-card__title">{title}</h2>
-          <p className="omok-end-card__desc">연습 모드가 종료되었습니다.</p>
-          <div className="omok-end-card__actions omok-end-card__actions--row">
-            <button type="button" className="omok-end-btn omok-end-btn--ghost" onClick={practiceOnHome}>
-              홈으로
-            </button>
-            <button type="button" className="omok-end-btn omok-end-btn--primary" onClick={practiceOnAgain}>
-              한판 더
+          <p className="omok-end-runway-desc">
+            <span className="omok-end-runway-desc__name">{opponentName}</span>
+            님이 도망가셨습니다.
+          </p>
+          <div className="omok-end-figma-actions omok-end-figma-actions--single">
+            <button type="button" className="omok-end-pill omok-end-pill--ok" onClick={onRunwayOk}>
+              OK
             </button>
           </div>
         </div>
@@ -72,30 +72,64 @@ export function OmokEndModals({
     );
   }
 
-  const title =
-    variant === 'win' ? '승리!' : variant === 'lose' ? '패배…' : '무승부';
+  if (!online) {
+    const title =
+      variant === 'win' ? '흑 승리' : variant === 'lose' ? '백 승리' : '무승부';
+    const id = variant === 'draw' ? 'draw' : variant === 'win' ? 'win' : 'lose';
+    return (
+      <div className="omok-end-overlay" role="presentation">
+        <div id={id} className="omok-end-card omok-end-card--figma" role="alertdialog" aria-modal="true" aria-labelledby={`${id}-title`}>
+          <h2 id={`${id}-title`} className="omok-end-figma-title omok-end-figma-title--practice">
+            {title}
+          </h2>
+          <p className="omok-end-practice-note">연습 모드가 종료되었습니다.</p>
+          <div className="omok-end-figma-actions">
+            <button type="button" className="omok-end-pill omok-end-pill--border" onClick={practiceOnAgain}>
+              한판 더
+            </button>
+            <button type="button" className="omok-end-pill omok-end-pill--border" onClick={practiceOnHome}>
+              홈으로
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const id = variant === 'draw' ? 'draw' : variant === 'win' ? 'win' : 'lose';
+  const title =
+    variant === 'win' ? 'YOU WIN' : variant === 'lose' ? 'YOU LOSE' : 'DRAW';
+  const titleId = `${id}-title`;
+  const canRematch = countdownSec > 0;
 
   return (
     <div className="omok-end-overlay" role="presentation">
-      <div id={id} className="omok-end-card" role="alertdialog" aria-modal="true" aria-labelledby={`${id}-title`}>
-        <h2 id={`${id}-title`} className="omok-end-card__title">
+      <div id={id} className="omok-end-card omok-end-card--figma" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+        <div className="omok-end-timer" aria-label={`재매칭 남은 시간 ${formatMmSs(countdownSec)}`}>
+          <OmokEndTimerIcon />
+          <span className="omok-end-timer__text">{formatMmSs(countdownSec)}</span>
+        </div>
+        <h2 id={titleId} className="omok-end-figma-title">
           {title}
         </h2>
-        <p className="omok-end-card__desc">
-          재대결을 원하면 <strong>Final</strong>을 누르세요. ({Math.max(0, countdownSec)}초 남음)
-        </p>
-        <div className="omok-end-card__actions">
-          <button
-            type="button"
-            className="omok-end-btn omok-end-btn--primary"
-            onClick={onFinal}
-            disabled={finalWaiting || countdownSec <= 0}
-          >
-            {finalWaiting ? 'Final (대기중…)' : 'Final'}
-          </button>
-          <button type="button" className="omok-end-btn omok-end-btn--ghost" onClick={onLeaveFirst}>
-            먼저 나가기
+        <div className="omok-end-figma-actions">
+          {finalWaiting ? (
+            <div className="omok-end-pill omok-end-pill--waiting" role="status" aria-live="polite">
+              상대 기다리는 중
+              <OpponentWaitingDots />
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="omok-end-pill omok-end-pill--border"
+              onClick={onFinal}
+              disabled={!canRematch}
+            >
+              한번 더 하기
+            </button>
+          )}
+          <button type="button" className="omok-end-pill omok-end-pill--border" onClick={onLeaveFirst}>
+            먼저 들어가보겠습니다
           </button>
         </div>
       </div>
