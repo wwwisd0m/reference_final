@@ -42,7 +42,7 @@ npm run preview  # dist 미리보기
 | 변수 | 용도 |
 |------|------|
 | `VITE_BASE_PATH` | GitHub Actions 등에서 `/repo-name/` 형태로 설정 (기본 `/`) |
-| `VITE_USE_REMOTE_LOBBY` | `true`: 원격 API 강제 / `false`: 로컬 저장소만 (커스텀 도메인·디버그용) |
+| `VITE_USE_REMOTE_LOBBY` | `true`/`false`로 강제. 미설정 시 `*.vercel.app`·프로덕션+비-github.io·비-localhost면 원격 API 사용 (정적 호스트만 쓰는 도메인이면 `false`) |
 
 ## 폴더 구조 (요약)
 
