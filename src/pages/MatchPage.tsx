@@ -6,7 +6,7 @@ import { WaitingDotsText } from '../components/match/WaitingDotsText';
 import { TopBarDoc } from '../components/home/HomeChrome';
 import './match.css';
 import './home.css';
-import { sanitizeNickname } from '../lib/nickname';
+import { nicknameFromInput, sanitizeNickname } from '../lib/nickname';
 import { isRemoteLobby } from '../lib/lobbyMode';
 import {
   cancelRoom,
@@ -132,8 +132,6 @@ export function MatchPage() {
         ? ASSETS_SIMPLE.arrowForward
         : ASSETS_EXCEL.arrowForward;
 
-  const guestNickOk = nickGuest.trim().length > 0;
-
   /* —— 게스트: room 구독 (호스트가 방 취소하면 A_G0_match_03) —— */
   useEffect(() => {
     if (!guest || !roomIdGuest) return;
@@ -205,8 +203,8 @@ export function MatchPage() {
   }, [guest, roomIdHost]);
 
   const joinGame = useCallback(async () => {
-    const n = sanitizeNickname(nickGuest.trim());
-    if (!n || !roomIdGuest) return;
+    const n = nicknameFromInput(nickGuest);
+    if (!roomIdGuest) return;
     const ok = await joinRoom(roomIdGuest, n);
     if (!ok) {
       setRoomSnap(getRoom(roomIdGuest));
@@ -323,10 +321,8 @@ export function MatchPage() {
                   value={nickGuest}
                   maxLength={8}
                   onChange={(e) => setNickGuest(sanitizeNickname(e.target.value))}
-                  required
-                  aria-required="true"
-                  placeholder="닉네임을 입력하세요"
                   autoComplete="off"
+                  aria-label="닉네임"
                 />
               </div>
             </div>
@@ -335,10 +331,8 @@ export function MatchPage() {
               <button
                 type="button"
                 className={'home-next home-next--' + theme}
-                onClick={joinGame}
-                disabled={!guestNickOk}
+                onClick={() => void joinGame()}
                 aria-label="다음"
-                aria-disabled={!guestNickOk}
               >
                 {theme === 'excel' && (
                   <span className="home-next__corner">

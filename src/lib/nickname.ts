@@ -13,3 +13,9 @@ export function sanitizeNickname(raw: string): string {
   const trimmed = raw.replace(/[^\p{L}\p{N}]/gu, '');
   return trimmed.slice(0, 8);
 }
+
+/** 공란이거나 정리 후 빈 문자열이면 `worker`+난수 3자리 */
+export function nicknameFromInput(raw: string): string {
+  const s = sanitizeNickname(raw.trim());
+  return s || defaultNickname();
+}

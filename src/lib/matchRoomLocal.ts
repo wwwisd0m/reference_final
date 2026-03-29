@@ -1,4 +1,5 @@
 import { sanitizeNickname } from './nickname';
+import type { BingoGameState } from './bingoEngine';
 import type { OmokGameState } from './omokEngine';
 
 /** omokRematch / 서버 JSON과 구조만 맞춤 (순환 import 방지) */
@@ -18,6 +19,7 @@ export type RoomState = {
   updatedAt: number;
   /** Vercel 등 원격 로비에서만 서버가 채움 */
   omok?: OmokGameState | null;
+  bingo?: BingoGameState | null;
   rematch?: RematchSnap | null;
   abandon?: AbandonSnap | null;
 };
@@ -36,7 +38,7 @@ function broadcast(roomId: string): void {
   }
 }
 
-function setRoom(roomId: string, state: RoomState): void {
+export function setRoom(roomId: string, state: RoomState): void {
   try {
     localStorage.setItem(roomKey(roomId), JSON.stringify(state));
     broadcast(roomId);

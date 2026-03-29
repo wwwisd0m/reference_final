@@ -73,16 +73,15 @@ export function OmokEndModals({
   }
 
   if (!online) {
-    const title =
-      variant === 'win' ? '흑 승리' : variant === 'lose' ? '백 승리' : '무승부';
+    const title = variant === 'win' ? 'YOU WIN' : variant === 'lose' ? 'YOU LOSE' : 'DRAW';
     const id = variant === 'draw' ? 'draw' : variant === 'win' ? 'win' : 'lose';
     return (
       <div className="omok-end-overlay" role="presentation">
-        <div id={id} className="omok-end-card omok-end-card--figma" role="alertdialog" aria-modal="true" aria-labelledby={`${id}-title`}>
-          <h2 id={`${id}-title`} className="omok-end-figma-title omok-end-figma-title--practice">
+        <div id={id} className="omok-end-card omok-end-card--figma omok-end-card--practice" role="alertdialog" aria-modal="true" aria-labelledby={`${id}-title`}>
+          <h2 id={`${id}-title`} className="omok-end-figma-title">
             {title}
           </h2>
-          <p className="omok-end-practice-note">연습 모드가 종료되었습니다.</p>
+          <p className="omok-end-practice-note">연습 모드 · 같은 기기에서 흑·백을 번갈아 둔 결과입니다.</p>
           <div className="omok-end-figma-actions">
             <button type="button" className="omok-end-pill omok-end-pill--border" onClick={practiceOnAgain}>
               한판 더
@@ -102,9 +101,20 @@ export function OmokEndModals({
   const titleId = `${id}-title`;
   const canRematch = countdownSec > 0;
 
+  const waitingPillClass =
+    variant === 'lose'
+      ? 'omok-end-pill omok-end-pill--waiting omok-end-pill--waiting-muted'
+      : 'omok-end-pill omok-end-pill--waiting omok-end-pill--waiting-outline';
+
   return (
     <div className="omok-end-overlay" role="presentation">
-      <div id={id} className="omok-end-card omok-end-card--figma" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+      <div
+        id={id}
+        className="omok-end-card omok-end-card--figma omok-end-card--online-end"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="omok-end-timer" aria-label={`재매칭 남은 시간 ${formatMmSs(countdownSec)}`}>
           <OmokEndTimerIcon />
           <span className="omok-end-timer__text">{formatMmSs(countdownSec)}</span>
@@ -114,7 +124,7 @@ export function OmokEndModals({
         </h2>
         <div className="omok-end-figma-actions">
           {finalWaiting ? (
-            <div className="omok-end-pill omok-end-pill--waiting" role="status" aria-live="polite">
+            <div className={waitingPillClass} role="status" aria-live="polite">
               상대 기다리는 중
               <OpponentWaitingDots />
             </div>

@@ -10,17 +10,30 @@
   box-sizing: border-box;
 }
 
+.omok-end-overlay > .omok-end-card--figma {
+  flex-shrink: 0;
+}
+
 .omok-end-card--figma {
   position: relative;
   width: 232px;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 36px 16px 20px;
+  padding: 40px 16px 20px;
   border-radius: 0;
   background: #fff;
   border: none;
   color: #646464;
   font-family: Pretendard, system-ui, sans-serif;
+}
+
+.omok-end-card--figma h2 {
+  margin-block: 0;
+}
+
+.omok-end-card--online-end,
+.omok-end-card--practice {
+  min-height: 200px;
 }
 
 .omok-end-timer {
@@ -47,7 +60,7 @@
 }
 
 .omok-end-figma-title {
-  margin: 0 0 0;
+  margin: 0;
   padding: 0;
   font-size: 16px;
   font-weight: 700;
@@ -55,10 +68,7 @@
   text-align: center;
   line-height: normal;
   color: #646464;
-}
-
-.omok-end-figma-title--practice {
-  margin-bottom: 8px;
+  text-transform: uppercase;
 }
 
 .omok-end-practice-note {
@@ -135,11 +145,22 @@
   cursor: not-allowed;
 }
 
+/* 피그마 #lose: 대기 시 회색 알약 / #win·#draw: 흰 배경+테두리 유지 */
 .omok-end-pill--waiting {
-  background: #f6f6f6;
-  color: #a0a0a0;
   cursor: default;
   user-select: none;
+}
+
+.omok-end-pill--waiting-muted {
+  background: #f6f6f6;
+  border: none;
+  color: #a0a0a0;
+}
+
+.omok-end-pill--waiting-outline {
+  background: #fff;
+  border: 1px solid #eaeaea;
+  color: #949494;
 }
 
 .omok-end-pill--ok {

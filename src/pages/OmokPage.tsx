@@ -9,6 +9,13 @@ import {
   signalAbandon,
   subscribeAbandon,
 } from '../lib/omokAbandon';
+import {
+  applyOmokPassTurnState,
+  applyOmokPlaceState,
+  normalizeOmokState,
+  OMOK_TURN_MS,
+  resolveOmokTimeouts,
+} from '../lib/omokEngine';
 import { emptyOmokBoard, OMOK_SIZE, type OmokStone } from '../lib/omokRules';
 import {
   ensureRematchAfterGameEnd,
@@ -18,13 +25,14 @@ import {
   subscribeRematch,
   REMATCH_SECONDS,
 } from '../lib/omokRematch';
+import { isRemoteLobby } from '../lib/lobbyMode';
 import {
-  applyOmokMoveState,
   ensureOmokGame,
   getOmokGame,
   resetOmokGame,
-  tryOmokMove,
   subscribeOmokGame,
+  tryOmokMove,
+  tryOmokPassTurn,
   type OmokGameState,
 } from '../lib/omokSync';
 import './game-play.css';
@@ -51,12 +59,15 @@ export function OmokPage() {
     turn: 1,
     winner: 0,
     updatedAt: Date.now(),
+    turnDeadline: Date.now() + OMOK_TURN_MS,
   }));
 
   const [endModal, setEndModal] = useState<EndModal>(null);
   const [rematch, setRematch] = useState(() => (playRoomId ? getRematch(playRoomId) : null));
   const [abandonSnap, setAbandonSnap] = useState(() => (playRoomId ? getAbandon(playRoomId) : null));
   const [tick, setTick] = useState(0);
+  /** 진행 중 타이머 UI 갱신 */
+  const [playClock, setPlayClock] = useState(0);
   const endHandledRef = useRef(false);
 
   useEffect(() => {
@@ -158,6 +169,36 @@ export function OmokPage() {
 
   const state = online ? onlineState : practiceState;
 
+  const playTimerActive = Boolean(state && state.winner === 0 && !endModal);
+
+  /** 30초 제한·턴 표시용 틱 */
+  useEffect(() => {
+    if (!playTimerActive) return;
+    const id = window.setInterval(() => setPlayClock((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [playTimerActive]);
+
+  /** 로컬 방: 제한 시간 경과를 주기적으로 반영 */
+  useEffect(() => {
+    if (!online || !playRoomId || isRemoteLobby() || endModal) return;
+    const id = window.setInterval(() => {
+      setOnlineState(getOmokGame(playRoomId));
+    }, 400);
+    return () => clearInterval(id);
+  }, [online, playRoomId, endModal]);
+
+  /** 연습 모드: 제한 시간 자동 턴 넘김 */
+  useEffect(() => {
+    if (online || endModal) return;
+    const id = window.setInterval(() => {
+      setPracticeState((prev) => {
+        if (prev.winner !== 0) return prev;
+        return resolveOmokTimeouts(normalizeOmokState(prev));
+      });
+    }, 400);
+    return () => clearInterval(id);
+  }, [online, endModal]);
+
   const countdownSec = useMemo(() => {
     if (!online || !rematch) return REMATCH_SECONDS;
     return Math.max(0, Math.ceil((rematch.deadline - Date.now()) / 1000));
@@ -175,7 +216,7 @@ export function OmokPage() {
       if (!state || state.winner !== 0 || endModal) return;
 
       if (online && playRoomId) {
-        if (state.turn !== myColor) return;
+        if (state.turn !== myColor || state.pendingPass != null) return;
         void tryOmokMove(playRoomId, r, c, myColor).then((ok) => {
           if (ok) setOnlineState(getOmokGame(playRoomId));
         });
@@ -183,7 +224,7 @@ export function OmokPage() {
       }
 
       setPracticeState((prev) => {
-        const next = applyOmokMoveState(prev, r, c, prev.turn);
+        const next = applyOmokPlaceState(prev, r, c, prev.turn);
         return next ?? prev;
       });
     },
@@ -202,28 +243,20 @@ export function OmokPage() {
       return myColor === 2 ? '승리했습니다!' : '패배했습니다.';
     }
     if (online) {
-      return state.turn === myColor ? '내 차례 — 교차점을 눌러 두세요.' : '상대의 차례입니다.';
+      if (state.turn !== myColor) return '상대의 차례입니다.';
+      if (state.pendingPass != null) return '돌을 두었습니다. 턴 넘기기를 눌러 주세요.';
+      return '내 차례 — 교차점에 돌을 두세요. (30초)';
     }
-    return state.turn === 1 ? '흑 차례 — 돌을 두세요.' : '백 차례 — 돌을 두세요.';
-  }, [state, online, myColor]);
-
-  const floatLabel = useMemo(() => {
-    if (!state) return '…';
-    if (state.winner === 'draw') return '무승부';
-    if (state.winner === 1) {
-      if (!online) return '흑 승리';
-      return myColor === 1 ? '승리' : '패배';
+    if (state.pendingPass != null) {
+      return state.turn === 1 ? '흑이 돌을 두었습니다. 턴 넘기기를 눌러 주세요.' : '백이 돌을 두었습니다. 턴 넘기기를 눌러 주세요.';
     }
-    if (state.winner === 2) {
-      if (!online) return '백 승리';
-      return myColor === 2 ? '승리' : '패배';
-    }
-    if (online) return state.turn === myColor ? '내 차례' : '상대 차례';
-    return state.turn === 1 ? '흑 차례' : '백 차례';
+    return state.turn === 1 ? '흑 차례 — 돌을 두세요. (30초)' : '백 차례 — 돌을 두세요. (30초)';
   }, [state, online, myColor]);
 
   const hostLayout = matchRole !== 'guest';
   const topIsWhite = hostLayout;
+  const topColor: Color = topIsWhite ? 2 : 1;
+  const bottomColor: Color = topIsWhite ? 1 : 2;
 
   const rowBlackActive = state != null && state.winner === 0 && state.turn === 1 && !endModal;
   const rowWhiteActive = state != null && state.winner === 0 && state.turn === 2 && !endModal;
@@ -278,12 +311,43 @@ export function OmokPage() {
     navigate('/');
   }, [online, playRoomId, matchRole, navigate]);
 
+  const onPassTurn = useCallback(() => {
+    if (!state || state.winner !== 0 || endModal) return;
+    if (state.pendingPass == null) return;
+    if (online && playRoomId) {
+      if (state.turn !== myColor) return;
+      void tryOmokPassTurn(playRoomId, myColor).then((ok) => {
+        if (ok) setOnlineState(getOmokGame(playRoomId));
+      });
+      return;
+    }
+    setPracticeState((prev) => {
+      const next = applyOmokPassTurnState(prev, prev.turn);
+      return next ?? prev;
+    });
+  }, [state, endModal, online, playRoomId, myColor]);
+
+  const canPassTurn = useMemo(() => {
+    if (!state || state.winner !== 0 || endModal) return false;
+    if (state.pendingPass == null) return false;
+    if (online) return state.turn === myColor;
+    return true;
+  }, [state, endModal, online, myColor]);
+
+  const turnSecondsLeft = useMemo(() => {
+    void playClock;
+    if (!state || state.winner !== 0) return 0;
+    const dl = state.turnDeadline ?? Date.now() + OMOK_TURN_MS;
+    return Math.max(0, Math.ceil((dl - Date.now()) / 1000));
+  }, [state, playClock]);
+
   const practiceOnAgain = useCallback(() => {
     setPracticeState({
       board: emptyOmokBoard(),
       turn: 1,
       winner: 0,
       updatedAt: Date.now(),
+      turnDeadline: Date.now() + OMOK_TURN_MS,
     });
     setEndModal(null);
     endHandledRef.current = false;
@@ -315,6 +379,7 @@ export function OmokPage() {
           !endModal &&
           state.winner === 0 &&
           v === 0 &&
+          state.pendingPass == null &&
           (online ? state.turn === myColor : true);
         out.push(
           <button
@@ -370,8 +435,9 @@ export function OmokPage() {
                 'omok-player-row__time ' +
                 (topRowActive ? 'omok-player-row__time--active' : 'omok-player-row__time--inactive')
               }
+              aria-live="polite"
             >
-              {topRowActive ? '차례' : ''}
+              {state && state.winner === 0 && state.turn === topColor ? String(turnSecondsLeft) : '—'}
             </div>
           </div>
 
@@ -402,8 +468,11 @@ export function OmokPage() {
                 'omok-player-row__time ' +
                 (bottomRowActive ? 'omok-player-row__time--active' : 'omok-player-row__time--inactive')
               }
+              aria-live="polite"
             >
-              {bottomRowActive ? '차례' : ''}
+              {state && state.winner === 0 && state.turn === bottomColor
+                ? String(turnSecondsLeft)
+                : '—'}
             </div>
           </div>
 
@@ -412,8 +481,15 @@ export function OmokPage() {
           )}
 
           <div className="action-buttons action-buttons--center">
-            <button type="button" className="omok-btn-turn" disabled>
-              {floatLabel}
+            <button
+              type="button"
+              className={
+                'omok-btn-turn ' + (canPassTurn ? 'omok-btn-turn--commit' : 'omok-btn-turn--idle')
+              }
+              disabled={!canPassTurn}
+              onClick={onPassTurn}
+            >
+              턴 넘기기
             </button>
           </div>
         </div>

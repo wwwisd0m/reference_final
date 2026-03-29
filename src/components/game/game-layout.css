@@ -14,6 +14,23 @@
   padding: 4px;
   cursor: pointer;
   line-height: 0;
+  border-radius: 8px;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.game-doc-bar__back:hover {
+  background: rgba(0, 0, 0, 0.06);
+  transform: scale(1.05);
+}
+
+html[data-theme='adobe'] .game-doc-bar__back:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='vscode'] .game-doc-bar__back:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .game-doc-bar__title {

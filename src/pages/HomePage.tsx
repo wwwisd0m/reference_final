@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { MobileFrame } from '../components/MobileFrame';
 import { CreditFrame } from '../components/home/FigmaPopovers';
 import { SkinSelect, TopBarDoc } from '../components/home/HomeChrome';
 import './home.css';
 import { useTheme } from '../context/ThemeContext';
-import { sanitizeNickname } from '../lib/nickname';
+import { nicknameFromInput, sanitizeNickname } from '../lib/nickname';
 import { ASSETS_ADOBE, ASSETS_EXCEL, ASSETS_SIMPLE } from '../theme/figmaAssets';
 
 type GameId = 'omok' | 'bingo';
@@ -16,42 +16,16 @@ export function HomePage() {
   const [nick, setNick] = useState('');
   const [creditOpen, setCreditOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameId>('omok');
-  const [nickTipOpen, setNickTipOpen] = useState(false);
-  const nickTipHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (nickTipHideRef.current) clearTimeout(nickTipHideRef.current);
-    };
-  }, []);
 
   const assets =
     theme === 'adobe' ? ASSETS_ADOBE : theme === 'vscode' ? ASSETS_SIMPLE : ASSETS_EXCEL;
 
-  const nickOk = nick.trim().length > 0;
-
-  useEffect(() => {
-    if (nickOk) setNickTipOpen(false);
-  }, [nickOk]);
-
   const goNext = useCallback(() => {
-    const n = sanitizeNickname(nick.trim());
-    if (!n) return;
+    const n = nicknameFromInput(nick);
     sessionStorage.setItem('nickname', n);
     sessionStorage.setItem(`hostRoom:${selectedGame}`, crypto.randomUUID());
     navigate(`/match/${selectedGame}`, { state: { nickname: n } });
   }, [navigate, nick, selectedGame]);
-
-  const onNextClick = useCallback(() => {
-    if (!nickOk) {
-      setNickTipOpen(true);
-      if (nickTipHideRef.current) clearTimeout(nickTipHideRef.current);
-      nickTipHideRef.current = setTimeout(() => setNickTipOpen(false), 3000);
-      document.getElementById('nick')?.focus();
-      return;
-    }
-    goNext();
-  }, [nickOk, goNext]);
 
   const nextArrow =
     theme === 'adobe'
@@ -97,10 +71,8 @@ export function HomePage() {
               maxLength={8}
               value={nick}
               onChange={(e) => setNick(sanitizeNickname(e.target.value))}
-              placeholder="닉네임을 입력하세요"
               autoComplete="off"
-              required
-              aria-required="true"
+              aria-label="닉네임"
             />
           </div>
         </div>
@@ -144,22 +116,11 @@ export function HomePage() {
 
         <div className="action-buttons action-buttons--end">
           <div className="home-next-wrap">
-            <div
-              id="home-nick-tooltip"
-              className={'home-nick-tooltip' + (nickTipOpen ? ' home-nick-tooltip--open' : '')}
-              role="tooltip"
-              aria-live="polite"
-              hidden={!nickTipOpen}
-            >
-              닉네임을 입력해 주세요
-            </div>
             <button
               type="button"
               className={'home-next home-next--' + theme}
-              onClick={onNextClick}
+              onClick={goNext}
               aria-label="다음"
-              aria-disabled={!nickOk}
-              aria-describedby={nickTipOpen ? 'home-nick-tooltip' : undefined}
             >
             {theme === 'excel' && (
               <span className="home-next__corner">
