@@ -33,6 +33,15 @@ jobs:
         env:
           VITE_BASE_PATH: ${{ github.event.repository.name == format('{0}.github.io', github.repository_owner) && '/' || format('/{0}/', github.event.repository.name) }}
 
+      # Pages가 저장소 루트(개발용 index.html)를 쓰면 /src/main.tsx만 있어 하얀 화면이 난다.
+      - name: Verify dist is a Vite production build
+        run: |
+          test -f dist/index.html
+          if grep -q '/src/main.tsx' dist/index.html; then
+            echo 'ERROR: dist/index.html still references /src/main.tsx — use GitHub Actions Pages, not Deploy from branch (root).'
+            exit 1
+          fi
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
