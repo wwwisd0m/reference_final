@@ -6,7 +6,7 @@
 
 - React 18, TypeScript, Vite 5  
 - React Router 6  
-- Vercel Serverless (`api/match-room.ts`) — 매칭 방·오목 보드·재매칭·이탈 상태를 REST로 저장, 클라이언트는 폴링으로 동기화 (WebSocket 없음)
+- Vercel Serverless (`api/match-room.ts`) + **Vercel KV** (`@vercel/kv`) — 방·오목 등 상태를 Redis에 저장 (서버리스 인스턴스 간 공유)
 
 ## 스크립트
 
@@ -27,9 +27,10 @@ npm run preview  # dist 미리보기
 ### Vercel (권장 — 원격 매칭·오목)
 
 1. 저장소를 Vercel에 연결합니다.  
-2. `vercel.json`으로 Vite 빌드·SPA 라우팅·`/api/*`가 잡힙니다.  
-3. **`*.vercel.app`** 호스트에서는 자동으로 원격 로비가 켜집니다.  
-4. **커스텀 도메인**만 쓸 때는 빌드 환경 변수에 `VITE_USE_REMOTE_LOBBY=true`를 넣습니다.
+2. 프로젝트에 **KV(또는 Marketplace의 Redis/Upstash)** 스토리지를 연결해 `KV_REST_API_URL`, `KV_REST_API_TOKEN` 환경 변수가 주입되게 합니다. (`@vercel/kv`가 이 값을 사용합니다.)  
+3. `vercel.json`으로 Vite 빌드·SPA 라우팅·`/api/*`가 잡힙니다.  
+4. **`*.vercel.app`** 호스트에서는 자동으로 원격 로비가 켜집니다.  
+5. **커스텀 도메인**만 쓸 때는 빌드 환경 변수에 `VITE_USE_REMOTE_LOBBY=true`를 넣습니다.
 
 ### GitHub Pages
 
