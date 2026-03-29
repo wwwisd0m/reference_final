@@ -1,10 +1,132 @@
-import { createClient, type VercelKV } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-  applyOmokMoveState,
-  initialOmokState,
-  type OmokGameState,
-} from './omokServer';
+
+/* -------------------------------------------------------------------------- */
+/* 오목 (API 단일 파일 — Vercel 번들에서 형제 모듈 누락 방지. src/lib/omokEngine 과 동기화) */
+/* -------------------------------------------------------------------------- */
+
+const OMOK_SIZE = 15;
+type OmokStone = 0 | 1 | 2;
+type OmokWinner = 0 | 1 | 2 | 'draw';
+
+type OmokGameState = {
+  board: OmokStone[][];
+  turn: 1 | 2;
+  winner: OmokWinner;
+  updatedAt: number;
+};
+
+function emptyOmokBoard(): OmokStone[][] {
+  return Array.from({ length: OMOK_SIZE }, () =>
+    Array.from({ length: OMOK_SIZE }, () => 0 as OmokStone)
+  );
+}
+
+function countLine(
+  board: OmokStone[][],
+  r: number,
+  c: number,
+  dr: number,
+  dc: number,
+  color: 1 | 2
+): number {
+  let n = 0;
+  let rr = r + dr;
+  let cc = c + dc;
+  while (
+    rr >= 0 &&
+    rr < OMOK_SIZE &&
+    cc >= 0 &&
+    cc < OMOK_SIZE &&
+    board[rr][cc] === color
+  ) {
+    n++;
+    rr += dr;
+    cc += dc;
+  }
+  return n;
+}
+
+function checkOmokWin(board: OmokStone[][], r: number, c: number, color: 1 | 2): boolean {
+  const dirs: [number, number][] = [
+    [0, 1],
+    [1, 0],
+    [1, 1],
+    [1, -1],
+  ];
+  for (const [dr, dc] of dirs) {
+    const total = 1 + countLine(board, r, c, dr, dc, color) + countLine(board, r, c, -dr, -dc, color);
+    if (total >= 5) return true;
+  }
+  return false;
+}
+
+function isBoardFull(board: OmokStone[][]): boolean {
+  for (let r = 0; r < OMOK_SIZE; r++) {
+    for (let c = 0; c < OMOK_SIZE; c++) {
+      if (board[r][c] === 0) return false;
+    }
+  }
+  return true;
+}
+
+function cloneBoard(b: OmokStone[][]): OmokStone[][] {
+  return b.map((row) => [...row]);
+}
+
+function applyOmokMoveState(
+  state: OmokGameState,
+  r: number,
+  c: number,
+  asColor: 1 | 2
+): OmokGameState | null {
+  if (state.winner !== 0) return null;
+  if (state.turn !== asColor) return null;
+  if (r < 0 || r >= OMOK_SIZE || c < 0 || c >= OMOK_SIZE) return null;
+  if (state.board[r][c] !== 0) return null;
+
+  const board = cloneBoard(state.board);
+  board[r][c] = asColor;
+
+  if (checkOmokWin(board, r, c, asColor)) {
+    return {
+      board,
+      turn: asColor,
+      winner: asColor,
+      updatedAt: Date.now(),
+    };
+  }
+
+  if (isBoardFull(board)) {
+    return {
+      board,
+      turn: asColor,
+      winner: 'draw',
+      updatedAt: Date.now(),
+    };
+  }
+
+  const nextTurn: 1 | 2 = asColor === 1 ? 2 : 1;
+  return {
+    board,
+    turn: nextTurn,
+    winner: 0,
+    updatedAt: Date.now(),
+  };
+}
+
+function initialOmokState(): OmokGameState {
+  return {
+    board: emptyOmokBoard(),
+    turn: 1,
+    winner: 0,
+    updatedAt: Date.now(),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* 매칭 로비 + Redis */
+/* -------------------------------------------------------------------------- */
 
 type RoomStatus = 'waiting' | 'joined' | 'started' | 'cancelled';
 
@@ -31,7 +153,6 @@ type StoredRoom = {
 };
 
 const KEY_PREFIX = 'match-lobby:v1:';
-/** 방 키 TTL(초). 갱신될 때마다 연장됨 */
 const TTL_SEC = 60 * 60;
 
 function roomKey(roomId: string): string {
@@ -52,14 +173,10 @@ function normalize(r: StoredRoom): StoredRoom {
   };
 }
 
-/**
- * 기본 `import { kv } from '@vercel/kv'` 는 KV_REST_* 만 읽습니다.
- * Upstash Redis(Vercel) 연동은 UPSTASH_REDIS_REST_* 만 주입하는 경우가 있어 둘 다 지원합니다.
- */
-let _kv: VercelKV | null = null;
+let _redis: Redis | null = null;
 
-function getKv(): VercelKV {
-  if (_kv) return _kv;
+function getRedis(): Redis {
+  if (_redis) return _redis;
   const url = (
     process.env.KV_REST_API_URL ||
     process.env.UPSTASH_REDIS_REST_URL ||
@@ -72,34 +189,42 @@ function getKv(): VercelKV {
   ).trim();
   if (!url || !token) {
     throw new Error(
-      'Redis REST 자격 증명 없음: KV_REST_API_URL+KV_REST_API_TOKEN 또는 UPSTASH_REDIS_REST_URL+UPSTASH_REDIS_REST_TOKEN'
+      'Redis REST 자격 증명 없음: KV_REST_* 또는 UPSTASH_REDIS_REST_* 환경 변수 필요'
     );
   }
-  _kv = createClient({ url, token });
-  return _kv;
+  _redis = new Redis({ url, token });
+  return _redis;
 }
 
 async function getRoom(roomId: string): Promise<StoredRoom | null> {
-  const raw = await getKv().get<StoredRoom>(roomKey(roomId));
+  const raw = await getRedis().get<StoredRoom>(roomKey(roomId));
   if (raw == null) return null;
   return normalize(raw as StoredRoom);
 }
 
 async function save(roomId: string, room: StoredRoom): Promise<void> {
-  await getKv().set(roomKey(roomId), normalize(room), { ex: TTL_SEC });
+  await getRedis().set(roomKey(roomId), normalize(room), { ex: TTL_SEC });
 }
 
 const playOk = (s: RoomStatus) => s === 'joined' || s === 'started';
 
+function queryPing(req: VercelRequest): boolean {
+  const p = req.query.ping;
+  const v = Array.isArray(p) ? p[0] : p;
+  return String(v ?? '') === '1';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     if (req.method === 'GET') {
-      if (req.query.ping === '1') {
-        await getKv().ping();
-        res.status(200).json({ ok: true, storage: 'redis' });
+      if (queryPing(req)) {
+        const pong = await getRedis().ping();
+        res.status(200).json({ ok: true, storage: 'redis', ping: pong });
         return;
       }
-      const roomId = String(req.query.roomId ?? '');
+      const roomId = String(
+        Array.isArray(req.query.roomId) ? req.query.roomId[0] : (req.query.roomId ?? '')
+      );
       if (!roomId) {
         res.status(400).json({ error: 'roomId required' });
         return;
@@ -368,7 +493,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.setHeader('Allow', 'GET, POST');
     res.status(405).end();
   } catch (err) {
-    console.error('[match-room] KV error', err);
+    console.error('[match-room] error', err);
     if (!res.headersSent) {
       res.status(503).json({ error: 'Storage temporarily unavailable' });
     }

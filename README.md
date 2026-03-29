@@ -6,7 +6,7 @@
 
 - React 18, TypeScript, Vite 5  
 - React Router 6  
-- Vercel Serverless (`api/match-room.ts`) + **Vercel KV** (`@vercel/kv`) — 방·오목 등 상태를 Redis에 저장 (서버리스 인스턴스 간 공유)
+- Vercel Serverless (`api/match-room.ts`) + **Upstash Redis** (`@upstash/redis`) — 방·오목 등 상태 저장 (서버리스 인스턴스 간 공유)
 
 ## 스크립트
 
@@ -27,7 +27,7 @@ npm run preview  # dist 미리보기
 ### Vercel (권장 — 원격 매칭·오목)
 
 1. 저장소를 Vercel에 연결합니다.  
-2. 프로젝트에 **KV(또는 Marketplace의 Redis/Upstash)** 스토리지를 연결합니다. 주입되는 이름은 **`KV_REST_API_URL` / `KV_REST_API_TOKEN`** 이거나 **`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** 일 수 있습니다. API는 둘 다 읽습니다 (`createClient`로 통합).  
+2. 프로젝트에 **KV 또는 Upstash Redis** 스토리지를 연결합니다. 주입 이름은 **`KV_REST_API_URL` / `KV_REST_API_TOKEN`** 또는 **`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** — API는 둘 다 읽습니다.  
 3. 배포 후 `GET /api/match-room?ping=1` 이 `{"ok":true,"storage":"redis"}` 를 주면 Redis 연결은 정상입니다.  
 4. `vercel.json`으로 Vite 빌드·SPA 라우팅·`/api/*`가 잡힙니다.  
 5. **`*.vercel.app`** 호스트에서는 자동으로 원격 로비가 켜집니다.  
@@ -51,8 +51,7 @@ npm run preview  # dist 미리보기
 - `src/pages/` — 홈, 매칭, 오목, 빙고  
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
-- `api/match-room.ts` — Vercel API 엔드포인트  
-- `api/omokServer.ts` — API 번들용 오목 규칙 (`src/lib/omokEngine` 과 규칙 동기화 필요)  
+- `api/match-room.ts` — Vercel API (오목 판정 로직 인라인 — `src/lib/omokEngine` 과 동기화 유지)  
 
 ---
 
