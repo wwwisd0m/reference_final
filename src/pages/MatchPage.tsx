@@ -7,6 +7,7 @@ import { TopBarDoc } from '../components/home/HomeChrome';
 import './match.css';
 import './home.css';
 import { sanitizeNickname } from '../lib/nickname';
+import { isRemoteLobby } from '../lib/lobbyMode';
 import {
   cancelRoom,
   ensureHostRoom,
@@ -39,7 +40,7 @@ type GuestInvalidReason =
 const GUEST_INVALID_SUB: Record<GuestInvalidReason, string> = {
   no_room_param: '방 정보가 URL에 없습니다.',
   room_not_found:
-    '다른 기기·브라우저에는 방 정보가 없습니다. 방은 호스트 PC의 그 브라우저 저장소에만 있어, URL만 보내서는 상대와 연결되지 않습니다.',
+    '방을 찾을 수 없습니다. 링크 오류·만료, 또는 호스트가 아직 대기 화면에 없을 수 있습니다. (GitHub Pages 등 로컬 저장소만 쓰는 배포에서는 다른 기기와 연결되지 않습니다.)',
   cancelled: '호스트가 대기 화면을 나가 방이 닫혔습니다.',
   already_started: '이미 매칭이 끝난 방입니다.',
   wrong_game: '다른 게임용 링크입니다.',
@@ -107,7 +108,10 @@ export function MatchPage() {
 
   const [nickGuest, setNickGuest] = useState('');
   const [roomSnap, setRoomSnap] = useState<RoomState | null>(() =>
-    guest && roomIdGuest ? getRoom(roomIdGuest) : null
+    guest && roomIdGuest && !isRemoteLobby() ? getRoom(roomIdGuest) : null
+  );
+  const [guestFetched, setGuestFetched] = useState(
+    () => !guest || !roomIdGuest || !isRemoteLobby()
   );
 
   const startedRef = useRef(false);
@@ -115,7 +119,7 @@ export function MatchPage() {
 
   const goHome = useCallback(() => {
     if (!guest && roomIdHost) {
-      cancelRoom(roomIdHost);
+      void cancelRoom(roomIdHost);
       sessionStorage.removeItem(`hostRoom:${gameId}`);
     }
     navigate('/');
@@ -133,8 +137,13 @@ export function MatchPage() {
   /* —— 게스트: room 구독 (호스트가 방 취소하면 A_G0_match_03) —— */
   useEffect(() => {
     if (!guest || !roomIdGuest) return;
-    const sync = () => setRoomSnap(getRoom(roomIdGuest));
-    sync();
+    const sync = () => {
+      setRoomSnap(getRoom(roomIdGuest));
+      setGuestFetched(true);
+    };
+    if (!isRemoteLobby()) {
+      sync();
+    }
     const unsub = subscribeRoom(roomIdGuest, sync);
     return unsub;
   }, [guest, roomIdGuest]);
@@ -147,51 +156,58 @@ export function MatchPage() {
     }
   }, [guest, roomIdHost, nickname, navigate]);
 
-  /* —— 호스트: 방 등록 —— */
+  /* —— 호스트: 방 등록 후 상대 닉 제출 시 플레이 (A_G1_omok / 빙고) —— */
   useEffect(() => {
     if (guest || !roomIdHost || !nickname) return;
-    ensureHostRoom(roomIdHost, nickname, gameId);
-  }, [guest, roomIdHost, nickname, gameId]);
 
-  /* —— 호스트: 상대 닉네임 제출 시 바로 플레이 (A_G1_omok / 빙고) —— */
-  useEffect(() => {
-    if (guest || !roomIdHost) return;
+    let unsub: (() => void) | undefined;
+    let cancelled = false;
 
-    const tryEnter = () => {
-      if (navigatedRef.current) return;
-      const room = getRoom(roomIdHost);
-      if (!room || room.status !== 'joined' || !room.guestNickname) return;
-      navigatedRef.current = true;
-      startedRef.current = true;
-      sessionStorage.setItem('opponentNickname', room.guestNickname);
-      sessionStorage.setItem('matchRole', 'host');
-      if (gameId === 'omok') {
-        resetOmokGame(roomIdHost);
-        sessionStorage.setItem('playRoomId', roomIdHost);
-      } else {
-        sessionStorage.removeItem('playRoomId');
-      }
-      markRoomStarted(roomIdHost);
-      navigate(playPath(gameId));
+    void ensureHostRoom(roomIdHost, nickname, gameId).then(() => {
+      if (cancelled) return;
+
+      const tryEnter = () => {
+        if (navigatedRef.current) return;
+        const room = getRoom(roomIdHost);
+        if (!room || room.status !== 'joined' || !room.guestNickname) return;
+        navigatedRef.current = true;
+        startedRef.current = true;
+        sessionStorage.setItem('opponentNickname', room.guestNickname);
+        sessionStorage.setItem('matchRole', 'host');
+        if (gameId === 'omok') {
+          resetOmokGame(roomIdHost);
+          sessionStorage.setItem('playRoomId', roomIdHost);
+        } else {
+          sessionStorage.removeItem('playRoomId');
+        }
+        void markRoomStarted(roomIdHost).then(() => {
+          navigate(playPath(gameId));
+        });
+      };
+
+      tryEnter();
+      unsub = subscribeRoom(roomIdHost, tryEnter);
+    });
+
+    return () => {
+      cancelled = true;
+      unsub?.();
     };
-
-    tryEnter();
-    const unsub = subscribeRoom(roomIdHost, tryEnter);
-    return unsub;
-  }, [guest, roomIdHost, gameId, navigate]);
+  }, [guest, roomIdHost, gameId, navigate, nickname]);
 
   /* —— 호스트: 매칭 화면 이탈 시 방 취소 —— */
   useEffect(() => {
     if (guest || !roomIdHost) return;
     return () => {
-      if (!startedRef.current) cancelRoom(roomIdHost);
+      if (!startedRef.current) void cancelRoom(roomIdHost);
     };
   }, [guest, roomIdHost]);
 
-  const joinGame = useCallback(() => {
+  const joinGame = useCallback(async () => {
     const n = sanitizeNickname(nickGuest.trim());
     if (!n || !roomIdGuest) return;
-    if (!joinRoom(roomIdGuest, n)) {
+    const ok = await joinRoom(roomIdGuest, n);
+    if (!ok) {
       setRoomSnap(getRoom(roomIdGuest));
       return;
     }
@@ -218,6 +234,36 @@ export function MatchPage() {
   if (guest) {
     if (!roomIdGuest) {
       return <MatchInvalid fileName={fileName} onHome={goHome} reason="no_room_param" />;
+    }
+
+    if (isRemoteLobby() && !guestFetched) {
+      return (
+        <MobileFrame>
+          <TopBarDoc />
+          <header className="match-subbar">
+            <button type="button" className="match-subbar__back" onClick={goHome} aria-label="뒤로">
+              <img src={ASSETS_MATCH_EXCEL.arrowBack} alt="" width={24} height={24} />
+            </button>
+            <span className="match-subbar__file">{fileName}</span>
+          </header>
+          <div className="match-host">
+            {theme === 'excel' && (
+              <div className="match-host__grid" aria-hidden>
+                <img src={ASSETS_MATCH_EXCEL.gridV} alt="" className="match-host__grid-v" />
+                <img src={ASSETS_MATCH_EXCEL.gridH} alt="" className="match-host__grid-h" />
+              </div>
+            )}
+            <div className="match-host__body">
+              <div className="match-host__wait">
+                <div className="match-host__spin-wrap">
+                  <ExcelMotionLoading size={31} />
+                </div>
+                <WaitingDotsText className="match-host__wait-txt" />
+              </div>
+            </div>
+          </div>
+        </MobileFrame>
+      );
     }
 
     const dead =
