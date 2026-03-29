@@ -27,10 +27,11 @@ jobs:
           node-version: '20'
           cache: npm
 
+      # 프로젝트 페이지: /저장소이름/ — user/org 페이지(username.github.io)는 루트 /
       - name: Install and build
         run: npm ci && npm run build
         env:
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_BASE_PATH: ${{ github.event.repository.name == format('{0}.github.io', github.repository_owner) && '/' || format('/{0}/', github.event.repository.name) }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
