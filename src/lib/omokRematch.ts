@@ -1,3 +1,7 @@
+import { isRemoteLobby } from './lobbyMode';
+import { getRoom, subscribeRoom } from './matchRoom';
+import { postLobbyAction } from './matchRoomRemote';
+
 const PREFIX = 'game-lobby-rematch:v1:';
 const CHANNEL = 'game-lobby-rematch';
 
@@ -26,6 +30,9 @@ function broadcast(roomId: string): void {
 
 export function getRematch(roomId: string): RematchState | null {
   if (!roomId) return null;
+  if (isRemoteLobby()) {
+    return getRoom(roomId)?.rematch ?? null;
+  }
   try {
     const raw = localStorage.getItem(k(roomId));
     if (!raw) return null;
@@ -36,6 +43,7 @@ export function getRematch(roomId: string): RematchState | null {
 }
 
 export function setRematch(roomId: string, state: RematchState): void {
+  if (isRemoteLobby()) return;
   try {
     localStorage.setItem(k(roomId), JSON.stringify(state));
     broadcast(roomId);
@@ -44,7 +52,11 @@ export function setRematch(roomId: string, state: RematchState): void {
   }
 }
 
-export function clearRematch(roomId: string): void {
+export async function clearRematch(roomId: string): Promise<void> {
+  if (isRemoteLobby()) {
+    await postLobbyAction({ action: 'rematchClear', roomId });
+    return;
+  }
   try {
     localStorage.removeItem(k(roomId));
     broadcast(roomId);
@@ -54,7 +66,11 @@ export function clearRematch(roomId: string): void {
 }
 
 /** 게임 종료 직후 한 번만 — 양쪽 클라이언트가 동시에 호출해도 최초 1회만 생성 */
-export function ensureRematchAfterGameEnd(roomId: string): void {
+export async function ensureRematchAfterGameEnd(roomId: string): Promise<void> {
+  if (isRemoteLobby()) {
+    await postLobbyAction({ action: 'rematchEnsure', roomId });
+    return;
+  }
   if (getRematch(roomId)) return;
   setRematch(roomId, {
     hostFinal: false,
@@ -63,7 +79,11 @@ export function ensureRematchAfterGameEnd(roomId: string): void {
   });
 }
 
-export function pressRematchFinal(roomId: string, role: 'host' | 'guest'): void {
+export async function pressRematchFinal(roomId: string, role: 'host' | 'guest'): Promise<void> {
+  if (isRemoteLobby()) {
+    await postLobbyAction({ action: 'rematchPress', roomId, role });
+    return;
+  }
   const r = getRematch(roomId);
   if (!r || Date.now() > r.deadline) return;
   const next: RematchState = {
@@ -75,6 +95,9 @@ export function pressRematchFinal(roomId: string, role: 'host' | 'guest'): void 
 }
 
 export function subscribeRematch(roomId: string, cb: () => void): () => void {
+  if (isRemoteLobby()) {
+    return subscribeRoom(roomId, cb);
+  }
   const onStorage = (e: StorageEvent) => {
     if (e.key === k(roomId)) cb();
   };

@@ -1,4 +1,9 @@
 import { sanitizeNickname } from './nickname';
+import type { OmokGameState } from './omokEngine';
+
+/** omokRematch / 서버 JSON과 구조만 맞춤 (순환 import 방지) */
+type RematchSnap = { hostFinal: boolean; guestFinal: boolean; deadline: number };
+type AbandonSnap = { by: 'host' | 'guest'; ts: number };
 
 const ROOM_PREFIX = 'game-lobby-room:v1:';
 const CHANNEL = 'game-lobby-match';
@@ -11,6 +16,10 @@ export type RoomState = {
   gameId: string;
   status: RoomStatus;
   updatedAt: number;
+  /** Vercel 등 원격 로비에서만 서버가 채움 */
+  omok?: OmokGameState | null;
+  rematch?: RematchSnap | null;
+  abandon?: AbandonSnap | null;
 };
 
 function roomKey(roomId: string): string {

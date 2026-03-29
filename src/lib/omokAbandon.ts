@@ -1,3 +1,7 @@
+import { isRemoteLobby } from './lobbyMode';
+import { getRoom, subscribeRoom } from './matchRoom';
+import { postLobbyAction } from './matchRoomRemote';
+
 const PREFIX = 'game-lobby-abandon:v1:';
 const CHANNEL = 'game-lobby-abandon';
 
@@ -20,7 +24,11 @@ function broadcast(roomId: string): void {
   }
 }
 
-export function signalAbandon(roomId: string, role: 'host' | 'guest'): void {
+export async function signalAbandon(roomId: string, role: 'host' | 'guest'): Promise<void> {
+  if (isRemoteLobby()) {
+    await postLobbyAction({ action: 'abandonSignal', roomId, role });
+    return;
+  }
   try {
     const payload: AbandonPayload = { by: role, ts: Date.now() };
     localStorage.setItem(k(roomId), JSON.stringify(payload));
@@ -30,7 +38,11 @@ export function signalAbandon(roomId: string, role: 'host' | 'guest'): void {
   }
 }
 
-export function clearAbandon(roomId: string): void {
+export async function clearAbandon(roomId: string): Promise<void> {
+  if (isRemoteLobby()) {
+    await postLobbyAction({ action: 'abandonClear', roomId });
+    return;
+  }
   try {
     localStorage.removeItem(k(roomId));
     broadcast(roomId);
@@ -41,6 +53,9 @@ export function clearAbandon(roomId: string): void {
 
 export function getAbandon(roomId: string): AbandonPayload | null {
   if (!roomId) return null;
+  if (isRemoteLobby()) {
+    return getRoom(roomId)?.abandon ?? null;
+  }
   try {
     const raw = localStorage.getItem(k(roomId));
     if (!raw) return null;
@@ -51,6 +66,9 @@ export function getAbandon(roomId: string): AbandonPayload | null {
 }
 
 export function subscribeAbandon(roomId: string, cb: () => void): () => void {
+  if (isRemoteLobby()) {
+    return subscribeRoom(roomId, cb);
+  }
   const onStorage = (e: StorageEvent) => {
     if (e.key === k(roomId)) cb();
   };

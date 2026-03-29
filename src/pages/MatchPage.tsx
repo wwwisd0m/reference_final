@@ -174,15 +174,16 @@ export function MatchPage() {
         startedRef.current = true;
         sessionStorage.setItem('opponentNickname', room.guestNickname);
         sessionStorage.setItem('matchRole', 'host');
-        if (gameId === 'omok') {
-          resetOmokGame(roomIdHost);
-          sessionStorage.setItem('playRoomId', roomIdHost);
-        } else {
-          sessionStorage.removeItem('playRoomId');
-        }
-        void markRoomStarted(roomIdHost).then(() => {
+        void (async () => {
+          if (gameId === 'omok') {
+            await resetOmokGame(roomIdHost);
+            sessionStorage.setItem('playRoomId', roomIdHost);
+          } else {
+            sessionStorage.removeItem('playRoomId');
+          }
+          await markRoomStarted(roomIdHost);
           navigate(playPath(gameId));
-        });
+        })();
       };
 
       tryEnter();
@@ -216,7 +217,7 @@ export function MatchPage() {
     if (room) sessionStorage.setItem('opponentNickname', room.hostNickname);
     sessionStorage.setItem('matchRole', 'guest');
     if (gameId === 'omok') {
-      resetOmokGame(roomIdGuest);
+      await resetOmokGame(roomIdGuest);
       sessionStorage.setItem('playRoomId', roomIdGuest);
     } else {
       sessionStorage.removeItem('playRoomId');

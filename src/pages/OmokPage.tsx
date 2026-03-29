@@ -61,8 +61,9 @@ export function OmokPage() {
 
   useEffect(() => {
     if (!online || !playRoomId) return;
-    ensureOmokGame(playRoomId);
-    setOnlineState(getOmokGame(playRoomId));
+    void ensureOmokGame(playRoomId).then(() => {
+      setOnlineState(getOmokGame(playRoomId));
+    });
     const unsub = subscribeOmokGame(playRoomId, () => {
       setOnlineState(getOmokGame(playRoomId));
     });
@@ -88,7 +89,7 @@ export function OmokPage() {
     if (!online || !playRoomId || !matchRole || !abandonSnap) return;
     if (abandonSnap.by !== matchRole) {
       setEndModal('runway');
-      clearRematch(playRoomId);
+      void clearRematch(playRoomId);
     }
   }, [abandonSnap, online, playRoomId, matchRole]);
 
@@ -101,8 +102,9 @@ export function OmokPage() {
     }
     if (endHandledRef.current) return;
     endHandledRef.current = true;
-    ensureRematchAfterGameEnd(playRoomId);
-    setRematch(getRematch(playRoomId));
+    void ensureRematchAfterGameEnd(playRoomId).then(() => {
+      setRematch(getRematch(playRoomId));
+    });
     if (onlineState.winner === 'draw') setEndModal('draw');
     else if (myColor === onlineState.winner) setEndModal('win');
     else setEndModal('lose');
@@ -126,12 +128,14 @@ export function OmokPage() {
   useEffect(() => {
     if (!online || !playRoomId || !rematch) return;
     if (!rematch.hostFinal || !rematch.guestFinal) return;
-    resetOmokGame(playRoomId);
-    clearRematch(playRoomId);
-    clearAbandon(playRoomId);
-    setOnlineState(getOmokGame(playRoomId));
-    setEndModal(null);
-    endHandledRef.current = false;
+    void (async () => {
+      await resetOmokGame(playRoomId);
+      await clearRematch(playRoomId);
+      await clearAbandon(playRoomId);
+      setOnlineState(getOmokGame(playRoomId));
+      setEndModal(null);
+      endHandledRef.current = false;
+    })();
   }, [rematch, online, playRoomId]);
 
   /** 카운트다운 UI + 15초 경과 시 홈 */
@@ -146,9 +150,10 @@ export function OmokPage() {
     if (!endModal || endModal === 'runway') return;
     if (rematch.hostFinal && rematch.guestFinal) return;
     if (Date.now() <= rematch.deadline) return;
-    clearRematch(playRoomId);
-    sessionStorage.removeItem('playRoomId');
-    navigate('/');
+    void clearRematch(playRoomId).then(() => {
+      sessionStorage.removeItem('playRoomId');
+      navigate('/');
+    });
   }, [tick, online, playRoomId, rematch, endModal, navigate]);
 
   const state = online ? onlineState : practiceState;
@@ -171,8 +176,9 @@ export function OmokPage() {
 
       if (online && playRoomId) {
         if (state.turn !== myColor) return;
-        const ok = tryOmokMove(playRoomId, r, c, myColor);
-        if (ok) setOnlineState(getOmokGame(playRoomId));
+        void tryOmokMove(playRoomId, r, c, myColor).then((ok) => {
+          if (ok) setOnlineState(getOmokGame(playRoomId));
+        });
         return;
       }
 
@@ -227,8 +233,11 @@ export function OmokPage() {
 
   const goHome = useCallback(() => {
     if (playRoomId) {
-      clearAbandon(playRoomId);
-      clearRematch(playRoomId);
+      void Promise.all([clearAbandon(playRoomId), clearRematch(playRoomId)]).then(() => {
+        sessionStorage.removeItem('playRoomId');
+        navigate('/');
+      });
+      return;
     }
     sessionStorage.removeItem('playRoomId');
     navigate('/');
@@ -236,8 +245,12 @@ export function OmokPage() {
 
   const onRunwayOk = useCallback(() => {
     if (playRoomId) {
-      clearAbandon(playRoomId);
-      clearRematch(playRoomId);
+      void Promise.all([clearAbandon(playRoomId), clearRematch(playRoomId)]).then(() => {
+        sessionStorage.removeItem('playRoomId');
+        setEndModal(null);
+        navigate('/');
+      });
+      return;
     }
     sessionStorage.removeItem('playRoomId');
     setEndModal(null);
@@ -246,14 +259,20 @@ export function OmokPage() {
 
   const onFinal = useCallback(() => {
     if (!online || !playRoomId || !matchRole) return;
-    pressRematchFinal(playRoomId, matchRole);
-    setRematch(getRematch(playRoomId));
+    void pressRematchFinal(playRoomId, matchRole).then(() => {
+      setRematch(getRematch(playRoomId));
+    });
   }, [online, playRoomId, matchRole]);
 
   const onLeaveFirst = useCallback(() => {
     if (online && playRoomId && matchRole) {
-      signalAbandon(playRoomId, matchRole);
-      clearRematch(playRoomId);
+      void (async () => {
+        await signalAbandon(playRoomId, matchRole);
+        await clearRematch(playRoomId);
+        sessionStorage.removeItem('playRoomId');
+        navigate('/');
+      })();
+      return;
     }
     sessionStorage.removeItem('playRoomId');
     navigate('/');
@@ -280,7 +299,7 @@ export function OmokPage() {
     return () => {
       const g = getOmokGame(playRoomId);
       if (g && g.winner === 0) {
-        signalAbandon(playRoomId, matchRole);
+        void signalAbandon(playRoomId, matchRole);
       }
     };
   }, [online, playRoomId, matchRole]);

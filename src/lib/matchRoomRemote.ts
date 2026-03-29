@@ -38,6 +38,16 @@ async function post(body: Record<string, unknown>): Promise<{ room: RoomState | 
   return { room: data.room ?? null, ok: data.ok };
 }
 
+/** 오목·재매칭 등 로비 부가 액션 — 응답 room으로 캐시 갱신 */
+export async function postLobbyAction(
+  body: Record<string, unknown>
+): Promise<{ room: RoomState | null; ok?: boolean }> {
+  const roomId = String(body.roomId ?? '');
+  const { room, ok } = await post(body);
+  if (roomId) setCache(roomId, room);
+  return { room, ok };
+}
+
 export async function ensureHostRoom(
   roomId: string,
   hostNickname: string,
@@ -79,7 +89,7 @@ export function subscribeRoom(roomId: string, cb: () => void): () => void {
       roomId,
       setInterval(() => {
         void pullRoom(roomId).then(() => notify(roomId));
-      }, 1500)
+      }, 1000)
     );
   }
   listeners.get(roomId)!.add(cb);
