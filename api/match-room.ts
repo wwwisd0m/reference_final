@@ -1,10 +1,10 @@
-import { kv } from '@vercel/kv';
+import { createClient, type VercelKV } from '@vercel/kv';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   applyOmokMoveState,
   initialOmokState,
   type OmokGameState,
-} from '../src/lib/omokEngine';
+} from './omokServer';
 
 type RoomStatus = 'waiting' | 'joined' | 'started' | 'cancelled';
 
@@ -52,14 +52,41 @@ function normalize(r: StoredRoom): StoredRoom {
   };
 }
 
+/**
+ * 기본 `import { kv } from '@vercel/kv'` 는 KV_REST_* 만 읽습니다.
+ * Upstash Redis(Vercel) 연동은 UPSTASH_REDIS_REST_* 만 주입하는 경우가 있어 둘 다 지원합니다.
+ */
+let _kv: VercelKV | null = null;
+
+function getKv(): VercelKV {
+  if (_kv) return _kv;
+  const url = (
+    process.env.KV_REST_API_URL ||
+    process.env.UPSTASH_REDIS_REST_URL ||
+    ''
+  ).trim();
+  const token = (
+    process.env.KV_REST_API_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_TOKEN ||
+    ''
+  ).trim();
+  if (!url || !token) {
+    throw new Error(
+      'Redis REST 자격 증명 없음: KV_REST_API_URL+KV_REST_API_TOKEN 또는 UPSTASH_REDIS_REST_URL+UPSTASH_REDIS_REST_TOKEN'
+    );
+  }
+  _kv = createClient({ url, token });
+  return _kv;
+}
+
 async function getRoom(roomId: string): Promise<StoredRoom | null> {
-  const raw = await kv.get<StoredRoom>(roomKey(roomId));
+  const raw = await getKv().get<StoredRoom>(roomKey(roomId));
   if (raw == null) return null;
   return normalize(raw as StoredRoom);
 }
 
 async function save(roomId: string, room: StoredRoom): Promise<void> {
-  await kv.set(roomKey(roomId), normalize(room), { ex: TTL_SEC });
+  await getKv().set(roomKey(roomId), normalize(room), { ex: TTL_SEC });
 }
 
 const playOk = (s: RoomStatus) => s === 'joined' || s === 'started';
@@ -67,6 +94,11 @@ const playOk = (s: RoomStatus) => s === 'joined' || s === 'started';
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     if (req.method === 'GET') {
+      if (req.query.ping === '1') {
+        await getKv().ping();
+        res.status(200).json({ ok: true, storage: 'redis' });
+        return;
+      }
       const roomId = String(req.query.roomId ?? '');
       if (!roomId) {
         res.status(400).json({ error: 'roomId required' });
