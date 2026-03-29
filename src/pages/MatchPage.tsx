@@ -29,14 +29,32 @@ function playPath(gameId: string): string {
   return gameId === 'bingo' ? '/play/bingo' : '/play/omok';
 }
 
+type GuestInvalidReason =
+  | 'no_room_param'
+  | 'room_not_found'
+  | 'cancelled'
+  | 'already_started'
+  | 'wrong_game';
+
+const GUEST_INVALID_SUB: Record<GuestInvalidReason, string> = {
+  no_room_param: '방 정보가 URL에 없습니다.',
+  room_not_found:
+    '다른 기기·브라우저에는 방 정보가 없습니다. 방은 호스트 PC의 그 브라우저 저장소에만 있어, URL만 보내서는 상대와 연결되지 않습니다.',
+  cancelled: '호스트가 대기 화면을 나가 방이 닫혔습니다.',
+  already_started: '이미 매칭이 끝난 방입니다.',
+  wrong_game: '다른 게임용 링크입니다.',
+};
+
 type InvalidProps = {
   fileName: string;
   onHome: () => void;
+  reason?: GuestInvalidReason;
 };
 
 /** A_G0_match_03 — 호스트 방 취소·잘못된 room 등 */
-function MatchInvalid({ fileName, onHome }: InvalidProps) {
+function MatchInvalid({ fileName, onHome, reason }: InvalidProps) {
   const { theme } = useTheme();
+  const sub = reason ? GUEST_INVALID_SUB[reason] : '이미 종료된 URL 입니다.';
 
   return (
     <MobileFrame>
@@ -60,7 +78,7 @@ function MatchInvalid({ fileName, onHome }: InvalidProps) {
         <div className="match-host__body match-invalid">
           <div className="match-invalid__card">
             <p className="match-invalid__title">Reference.final</p>
-            <p className="match-invalid__sub">이미 종료된 URL 입니다.</p>
+            <p className="match-invalid__sub">{sub}</p>
           </div>
           <div className="action-buttons action-buttons--center">
             <button type="button" className="match-btn-wanna" onClick={onHome}>
@@ -199,7 +217,7 @@ export function MatchPage() {
   /* —— 게스트: A_G0_match_02 / 잘못된 접근 A_G0_match_03 —— */
   if (guest) {
     if (!roomIdGuest) {
-      return <MatchInvalid fileName={fileName} onHome={goHome} />;
+      return <MatchInvalid fileName={fileName} onHome={goHome} reason="no_room_param" />;
     }
 
     const dead =
@@ -209,7 +227,16 @@ export function MatchPage() {
       roomSnap.gameId !== gameId;
 
     if (dead) {
-      return <MatchInvalid fileName={fileName} onHome={goHome} />;
+      const reason: GuestInvalidReason = !roomSnap
+        ? 'room_not_found'
+        : roomSnap.status === 'cancelled'
+          ? 'cancelled'
+          : roomSnap.status === 'started'
+            ? 'already_started'
+            : roomSnap.gameId !== gameId
+              ? 'wrong_game'
+              : 'room_not_found';
+      return <MatchInvalid fileName={fileName} onHome={goHome} reason={reason} />;
     }
 
     return (
