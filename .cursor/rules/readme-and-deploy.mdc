@@ -1,14 +1,16 @@
 ---
-description: 코드 변경 시 README 동기화 및 배포(main 푸시)
+description: 에이전트 전용 — 코드 변경 시 README 동기화·배포 (레포 README에 쓰지 말 것)
 alwaysApply: true
 ---
 
-# README·배포 (Reference.final / rf)
+# README·배포 (에이전트만)
+
+**이 지침은 Cursor 에이전트가 따르는 것이다. 사용자에게 레포 README에 적지 않는다.**
 
 이 저장소에서 **동작·설정·배포·환경 변수·폴더 구조**에 영향을 주는 수정을 할 때마다:
 
-1. **`README.md`를 같은 커밋에서 갱신**한다. (새 기능, 스크립트, env, 배포 단계, 알려야 할 제한 사항)
+1. **`README.md`를 같은 커밋에서 갱신**한다. (새 기능, 스크립트, env, 배포 단계, 제한 사항)
 2. 사소한 오타·주석만이면 README는 생략해도 된다.
-3. 작업이 끝나면 **`main`에 커밋하고 `git push origin main`** 해 GitHub Actions(Vercel 연동 시 자동 배포 포함)가 돌게 한다. 사용자가 푸시를 원하지 않는 경우에만 생략한다.
+3. 작업이 끝나면 **`main`에 커밋하고 `git push origin main`** 해 배포 파이프라인이 돌게 한다. 사용자가 푸시를 원하지 않으면 생략한다.
 
-README의 **제작·버그 리포트** 블록은 내용 변경이 없으면 그대로 둔다.
+README의 **제작·버그 리포트** 블록은 바뀌지 않았으면 그대로 둔다.

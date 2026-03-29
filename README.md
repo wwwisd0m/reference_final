@@ -51,10 +51,6 @@ npm run preview  # dist 미리보기
 - `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
 - `api/match-room.ts` — Vercel API 엔드포인트  
 
-## 문서·배포 습관
-
-기능·설정·배포 방식이 바뀌면 **같은 변경 묶음에서 `README.md`를 함께 수정**하고, `main`에 푸시해 배포 파이프라인이 돌도록 맞춘다. (Cursor 프로젝트 규칙: `.cursor/rules/readme-and-deploy.mdc`)
-
 ---
 
 ## 👥 제작
