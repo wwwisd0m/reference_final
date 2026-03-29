@@ -1,0 +1,70 @@
+.game-doc-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px 0 8px;
+  background: var(--game-docbar-bg);
+  border-bottom: 1px solid var(--game-docbar-border);
+}
+
+.game-doc-bar__back {
+  border: none;
+  background: none;
+  padding: 4px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.game-doc-bar__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--game-docbar-title);
+}
+
+.game-sheet {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.game-sheet__grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.game-sheet__grid-v {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 718px;
+  width: auto;
+  opacity: 0.92;
+}
+
+.game-sheet__grid-h {
+  position: absolute;
+  left: -82px;
+  top: 24px;
+  width: 618px;
+  height: auto;
+  opacity: 0.92;
+}
+
+html[data-theme='adobe'] .game-sheet__grid-bg {
+  opacity: 0.25;
+}
+
+html[data-theme='vscode'] .game-sheet__grid-bg {
+  opacity: 0.45;
+}
+
+.game-sheet__content {
+  position: relative;
+  z-index: 1;
+  padding: 12px 16px 100px;
+  max-width: 360px;
+  margin: 0 auto;
+}

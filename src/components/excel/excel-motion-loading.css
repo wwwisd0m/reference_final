@@ -1,0 +1,33 @@
+/* ewxel/motion/Loading — SVG 스피너 (Excel 톤) */
+
+.excel-motion-loading {
+  display: block;
+  flex-shrink: 0;
+  color: var(--excel-loading-arc, #2d9b5e);
+}
+
+.excel-motion-loading__track {
+  fill: none;
+  stroke: var(--excel-loading-track, #e4e4e4);
+  stroke-width: 3;
+}
+
+.excel-motion-loading__spin {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: excel-motion-arc-rotate 0.95s linear infinite;
+}
+
+.excel-motion-loading__arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 19 57;
+}
+
+@keyframes excel-motion-arc-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}

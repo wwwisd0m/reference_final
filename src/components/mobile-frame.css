@@ -1,0 +1,20 @@
+.mobile-frame {
+  width: 100%;
+  max-width: 360px;
+  min-height: 100vh;
+  margin: 0 auto;
+  position: relative;
+  background: var(--skin-page-bg);
+  color: var(--skin-text);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+@media (min-width: 400px) {
+  .mobile-frame {
+    min-height: 800px;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+}

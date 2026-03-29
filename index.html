@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('game-lobby-theme');
+          document.documentElement.dataset.theme =
+            t === 'excel' || t === 'adobe' || t === 'vscode' ? t : 'excel';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'excel';
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Lobby — UI Reference</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

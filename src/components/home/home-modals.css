@@ -1,0 +1,187 @@
+/* 피그마 credit / bugrepot — 스킨 A·B·C (data-theme), 그림자 없음 */
+
+.frame-credit {
+  width: auto;
+  min-width: 93px;
+  max-width: 140px;
+  min-height: 183px;
+  padding: 18px 14px 14px 17px;
+  box-sizing: border-box;
+  background: var(--modal-credit-bg);
+  border: 1px solid var(--modal-credit-border);
+  border-radius: 2px;
+  text-align: left;
+}
+
+.frame-credit__brand {
+  margin-bottom: 22px;
+}
+
+.frame-credit__team {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--modal-credit-team-sub);
+  letter-spacing: -0.15px;
+  line-height: 1.2;
+}
+
+.frame-credit__name {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--modal-credit-brand);
+  letter-spacing: -0.15px;
+  line-height: 1.25;
+}
+
+.frame-credit__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.frame-credit__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.frame-credit__role {
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: -0.12px;
+  color: var(--modal-credit-role);
+  line-height: 1.2;
+}
+
+.frame-credit__who {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: -0.15px;
+  color: var(--modal-credit-name);
+  line-height: 1.2;
+}
+
+.frame-bug {
+  position: relative;
+  width: 172px;
+  min-height: 104px;
+  padding: 27px 40px 16px 25px;
+  box-sizing: border-box;
+  background: var(--modal-bug-bg);
+  border: 1px solid var(--modal-bug-border);
+  border-radius: 2px;
+  text-align: left;
+}
+
+.frame-bug__close {
+  position: absolute;
+  top: 9px;
+  right: 11px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0.85;
+}
+
+.frame-bug__close:hover {
+  opacity: 1;
+}
+
+.frame-bug__text {
+  margin: 0 0 10px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: var(--modal-bug-text);
+  line-height: 14px;
+}
+
+.frame-bug__mail {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--modal-bug-mail);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+html[data-theme='excel'] {
+  --modal-credit-bg: #ffffff;
+  --modal-credit-border: #eeeeee;
+  --modal-credit-team-sub: #9a9a9a;
+  --modal-credit-brand: #5c5c5c;
+  --modal-credit-role: #9a9a9a;
+  --modal-credit-name: #424242;
+  --modal-bug-bg: #ffffff;
+  --modal-bug-border: #eaeaea;
+  --modal-bug-text: #585858;
+  --modal-bug-mail: #4b4b4b;
+}
+
+html[data-theme='adobe'] {
+  --modal-credit-bg: #2a2a2a;
+  --modal-credit-border: #404040;
+  --modal-credit-team-sub: #888888;
+  --modal-credit-brand: #e0e0e0;
+  --modal-credit-role: #8a8a8a;
+  --modal-credit-name: #d0d0d0;
+  --modal-bug-bg: #262626;
+  --modal-bug-border: #3a3a3a;
+  --modal-bug-text: #b8b8b8;
+  --modal-bug-mail: #7ab8ff;
+}
+
+html[data-theme='vscode'] {
+  --modal-credit-bg: #ffffff;
+  --modal-credit-border: #efefef;
+  --modal-credit-team-sub: #9a9a9a;
+  --modal-credit-brand: #5c5c5c;
+  --modal-credit-role: #9a9a9a;
+  --modal-credit-name: #424242;
+  --modal-bug-bg: #ffffff;
+  --modal-bug-border: #e8e8e8;
+  --modal-bug-text: #585858;
+  --modal-bug-mail: #1473e6;
+}
+
+/* 홈 credit 트리거 위치 */
+.home-credit-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.frame-credit--floating {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  z-index: 100;
+}
+
+/* 상단바 벌레잡기 호버 */
+.top-bar__bug-hover {
+  position: relative;
+  margin-left: auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.top-bar--simple .top-bar__bug-hover {
+  margin-left: 0;
+}
+
+.frame-bug--floating {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 100;
+}

@@ -1,0 +1,38 @@
+/* 중요 버튼 — 바로 위 요소와 30px 간격 (플로팅 없음) */
+
+:root {
+  --action-gap-from-above: 30px;
+}
+
+.action-buttons {
+  margin-top: var(--action-gap-from-above);
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 360px;
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  display: flex;
+}
+
+.action-buttons--end {
+  justify-content: flex-end;
+  padding-right: 57px;
+}
+
+.action-buttons--center {
+  justify-content: center;
+}
+
+.action-buttons .omok-btn-turn,
+.action-buttons .bingo-btn {
+  width: 100%;
+  max-width: 242px;
+  margin: 0;
+}
+
+.action-buttons .match-btn--full {
+  max-width: 280px;
+  width: 100%;
+}
