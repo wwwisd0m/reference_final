@@ -191,7 +191,8 @@ export function MatchPage() {
   }, [gameId, navigate, nickGuest, roomIdGuest]);
 
   const copyInvite = useCallback(() => {
-    const url = `${window.location.origin}/match/${gameId}?guest=1&room=${encodeURIComponent(roomIdHost)}`;
+    const path = `match/${gameId}?guest=1&room=${encodeURIComponent(roomIdHost)}`;
+    const url = new URL(path, `${window.location.origin}${import.meta.env.BASE_URL}`).href;
     void navigator.clipboard.writeText(url);
   }, [gameId, roomIdHost]);
 

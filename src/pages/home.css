@@ -290,6 +290,15 @@ html[data-theme='vscode'] .nick-field__box {
 
 .nick-field__input::placeholder {
   color: var(--skin-input-placeholder);
+  opacity: 1;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+/* 입력 중 플레이스홀더가 남아 보이는 브라우저 대비 */
+.nick-field__input:not(:placeholder-shown)::placeholder,
+.nick-field__input:not(:placeholder-shown)::-webkit-input-placeholder {
+  opacity: 0;
+  color: transparent;
 }
 
 .game-box {
