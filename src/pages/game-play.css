@@ -110,13 +110,6 @@
   font-weight: 600;
 }
 
-.omok-practice-note {
-  margin: 8px 0 0;
-  font-size: 10px;
-  color: var(--skin-muted, #888);
-  text-align: center;
-}
-
 html[data-theme='excel'] {
   --omok-dot-opp: #b0b0b0;
   --omok-dot-me-ring: #518d6c;
@@ -369,6 +362,25 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   padding: 12px 8px 16px;
   background: var(--bingo-sheet-bg);
   border: 1px solid var(--bingo-sheet-border);
+}
+
+.bingo-opponent-caption,
+.bingo-my-board-caption {
+  margin: 6px 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--skin-muted, #888);
+}
+
+.bingo-board-wrap--opponent {
+  padding-top: 8px;
+  padding-bottom: 10px;
+}
+
+.bingo-cell--opponent-preview {
+  cursor: default;
+  pointer-events: none;
 }
 
 .bingo-grid-5 {

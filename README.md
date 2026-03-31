@@ -52,11 +52,11 @@ npm run preview  # dist 미리보기
 
 ## 폴더 구조 (요약)
 
-- `src/pages/` — 홈, 매칭, 오목, 빙고  
+- `src/pages/` — 홈, 매칭, 오목·빙고 플레이 (`/play/*`는 매칭 후 `playRoomId`·`matchRole` 없으면 홈으로 보냄. 1인 연습 모드 없음. 플레이 화면 닉네임은 `getRoom(roomId)`의 `hostNickname` / `guestNickname` 사용)  
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
 - `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
-- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: 호스트가 `ensure`로 빙고 방을 만들 때 방 객체의 **`subjectId`**(과일/꽃/동물)를 Redis에 **1회** 저장하고, GET 시 게스트도 동일 필드를 받습니다. 클라이언트는 `subjectId`로만 단어 풀을 구성합니다. 표시(`markedByIndex`)는 **단어(정렬 풀 인덱스)** 기준으로 동기화됩니다. **`bingo.turn` / 타임아웃**은 Redis와 GET `getRoomResolved`가 권한을 가지며, 원격 모드 클라이언트는 폴링으로 받은 값을 그대로 표시합니다(로컬 시각으로 `resolveBingoPlayTimeouts`를 다시 돌리지 않음). **시작**은 호스트·게스트 **둘 다 완료** 후에만. 레거시 키 `bingoSubjectId`는 API `normalize`에서 `subjectId`로 흡수합니다.  
+- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: `bingoEnsure` 시 서버가 **동일한 초기 `labels` 5×5**를 Redis에 두고, 호스트·게스트가 같은 SUBJECT·같은 25단어에서 시작합니다. **완료** 시 `bingoReady`로 각자 `layoutFlat`을 저장(`hostLayoutFlat` / `guestLayoutFlat`). **`hostReady` / `guestReady`**는 JSON에서 `true`·`1`·`'1'`만 참으로 파싱해 `Boolean("false")===true` 류 오인을 막고, **`hostReady === true` 이고 `guestReady === true` 일 때만** `phase: play`로 전환합니다. 플레이 중 표시는 서버 `markedByIndex`·`pendingWord`(단어 문자열)를 폴링으로 받아 각자 판에 매핑합니다. **`bingo.turn` / 타임아웃**은 Redis·`getRoomResolved` 권한, 원격 클라는 폴링 값만 표시. 레거시 `bingoSubjectId`는 `normalize`에서 `subjectId`로 흡수.  
 
 ---
 

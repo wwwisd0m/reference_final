@@ -7,12 +7,16 @@ import {
   applyBingoSetupGrid,
   applyBingoSetupReady,
   bingoStateNeedsPersist,
+  BINGO_CELL_COUNT,
+  BINGO_SIZE,
   buildShuffledGrid5,
   coerceBingoGameState,
   flattenLabels,
   initialBingoState,
   normalizeBingoState,
   resolveBingoAll,
+  unflattenLabelsFlat,
+  validateLayoutFlatForSubject,
   type BingoGameState,
   type BingoSubjectId,
 } from './bingoEngine';
@@ -64,28 +68,76 @@ function readLocalLayout(
   }
 }
 
-/** 방 `subjectId`(Redis·GET)를 단일 기준으로 빙고 주제 고정 */
-function mergeRemoteLabels(
+function isSquareLabels5(labels: string[][] | undefined): boolean {
+  return !!(
+    labels &&
+    labels.length === BINGO_SIZE &&
+    labels.every((row) => Array.isArray(row) && row.length === BINGO_SIZE)
+  );
+}
+
+function remoteMatchRole(): 'host' | 'guest' | null {
+  try {
+    const r = sessionStorage.getItem('matchRole');
+    if (r === 'host' || r === 'guest') return r;
+  } catch {
+    /* noop */
+  }
+  return null;
+}
+
+/**
+ * 원격: 서버 `labels`(ensure 1회) + 완료 시 `hostLayoutFlat`/`guestLayoutFlat`.
+ * 역할별로 내 배치만 `labels`에 넣고, 클라에서 임의 `buildShuffledGrid5`로 서로 다른 판을 만들지 않음.
+ */
+function mergeRemoteBingoForRole(
   roomId: string,
   roomSubjectId: BingoSubjectId | null | undefined,
-  serverBingo: BingoGameState
+  serverBingo: BingoGameState,
+  role: 'host' | 'guest'
 ): BingoGameState {
   const sid = isRoomBingoSubject(roomSubjectId) ? roomSubjectId : serverBingo.subjectId;
-  let base =
+  const base: BingoGameState =
     serverBingo.subjectId === sid
       ? serverBingo
-      : {
-          ...serverBingo,
-          subjectId: sid,
-          labels: buildShuffledGrid5(sid),
-        };
+      : { ...serverBingo, subjectId: sid, labels: buildShuffledGrid5(sid) };
+
+  const myReady = role === 'host' ? base.hostReady === true : base.guestReady === true;
+  const myFlat = role === 'host' ? base.hostLayoutFlat : base.guestLayoutFlat;
+  const hasValidMine =
+    Array.isArray(myFlat) &&
+    myFlat.length === BINGO_CELL_COUNT &&
+    validateLayoutFlatForSubject(myFlat, base.subjectId);
+
+  if (hasValidMine && (base.phase === 'play' || myReady)) {
+    return { ...base, labels: unflattenLabelsFlat(myFlat) };
+  }
+
   const cached = readLocalLayout(roomId, sid);
   if (cached) {
     return { ...base, labels: cached };
   }
+
+  if (isSquareLabels5(base.labels)) {
+    return base;
+  }
+
   const labels = buildShuffledGrid5(sid);
   persistLocalBingoLayout(roomId, sid, labels);
   return { ...base, labels };
+}
+
+function mergeRemoteBingoNoRole(
+  roomSubjectId: BingoSubjectId | null | undefined,
+  serverBingo: BingoGameState
+): BingoGameState {
+  const sid = isRoomBingoSubject(roomSubjectId) ? roomSubjectId : serverBingo.subjectId;
+  const base: BingoGameState =
+    serverBingo.subjectId === sid
+      ? serverBingo
+      : { ...serverBingo, subjectId: sid, labels: buildShuffledGrid5(sid) };
+  if (isSquareLabels5(base.labels)) return base;
+  return { ...base, labels: buildShuffledGrid5(sid) };
 }
 
 function patchLocalRoomBingo(roomId: string, nextBingo: BingoGameState): void {
@@ -116,7 +168,11 @@ export function getBingoGame(roomId: string): BingoGameState | null {
   const b = normalizeFromCache(rawRoom?.bingo ?? null);
   if (!b) return null;
   if (isRemoteLobby()) {
-    const merged = mergeRemoteLabels(roomId, roomSubjectId, b);
+    const role = remoteMatchRole();
+    const merged =
+      role != null
+        ? mergeRemoteBingoForRole(roomId, roomSubjectId, b, role)
+        : mergeRemoteBingoNoRole(roomSubjectId, b);
     return sanitizeRemoteBingoState(merged);
   }
   let resolved = resolveBingoAll(normalizeBingoState(b));

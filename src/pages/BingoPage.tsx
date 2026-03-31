@@ -3,17 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { GameLayout } from '../components/game/GameLayout';
 import { ExcelMotionLoading } from '../components/excel/ExcelMotionLoading';
 import {
-  applyBingoPass,
-  applyBingoSelect,
-  applyBingoSetupGrid,
-  applyBingoSetupReady,
   BINGO_PLAY_TURN_MS,
   BINGO_SUBJECT_LABEL,
   derivedMarkedGrid,
-  initialBingoState,
-  normalizeBingoState,
-  PRACTICE_DEFAULT_BINGO_SUBJECT,
-  resolveBingoAll,
+  unflattenLabelsFlat,
+  validateLayoutFlatForSubject,
   type BingoGameState,
 } from '../lib/bingoEngine';
 import {
@@ -42,20 +36,37 @@ function swapInGrid(grid: string[][], fr: number, fc: number, tr: number, tc: nu
 
 export function BingoPage() {
   const navigate = useNavigate();
-  const selfName = sessionStorage.getItem('nickname') ?? '나';
-  const oppName = sessionStorage.getItem('opponentNickname') ?? '상대';
   const playRoomId = sessionStorage.getItem('playRoomId');
   const matchRole = sessionStorage.getItem('matchRole') as 'host' | 'guest' | null;
   const online = Boolean(playRoomId && (matchRole === 'host' || matchRole === 'guest'));
   const myColor: Color = matchRole === 'guest' ? 2 : 1;
   const oppColor: Color = myColor === 1 ? 2 : 1;
 
-  const [practiceBingo, setPracticeBingo] = useState<BingoGameState>(() =>
-    initialBingoState(PRACTICE_DEFAULT_BINGO_SUBJECT)
-  );
   const [syncBingo, setSyncBingo] = useState<BingoGameState | null>(null);
   const [playClock, setPlayClock] = useState(0);
   const [dragFrom, setDragFrom] = useState<{ r: number; c: number } | null>(null);
+
+  useEffect(() => {
+    if (!playRoomId || (matchRole !== 'host' && matchRole !== 'guest')) {
+      navigate('/', { replace: true });
+    }
+  }, [playRoomId, matchRole, navigate]);
+
+  const room = useMemo(
+    () => (playRoomId ? getRoom(playRoomId) : null),
+    [playRoomId, syncBingo?.updatedAt]
+  );
+
+  const selfName = useMemo(() => {
+    if (!room || !matchRole) return '나';
+    if (matchRole === 'guest') return room.guestNickname ?? '게스트';
+    return room.hostNickname ?? '호스트';
+  }, [room, matchRole]);
+
+  const oppName = useMemo(() => {
+    if (!room || !matchRole) return '상대';
+    return matchRole === 'guest' ? (room.hostNickname ?? '상대') : (room.guestNickname ?? '상대');
+  }, [room, matchRole]);
 
   useEffect(() => {
     if (!online || !playRoomId) return;
@@ -89,7 +100,7 @@ export function BingoPage() {
     return () => clearInterval(id);
   }, [online, playRoomId]);
 
-  const bingo = online ? syncBingo : practiceBingo;
+  const bingo = syncBingo;
 
   useEffect(() => {
     if (!bingo || bingo.winner !== 0) return;
@@ -97,13 +108,16 @@ export function BingoPage() {
     return () => clearInterval(id);
   }, [bingo?.winner, bingo?.phase]);
 
-  useEffect(() => {
-    if (online) return;
-    const id = window.setInterval(() => {
-      setPracticeBingo((prev) => resolveBingoAll(normalizeBingoState(prev)));
-    }, 400);
-    return () => clearInterval(id);
-  }, [online]);
+  if (!online) {
+    return (
+      <GameLayout docTitle="reference-final" onBack={() => navigate('/')}>
+        <div className="bingo-play omok-loading-wrap">
+          <ExcelMotionLoading size={31} label="대전 연결 필요" />
+          <p className="omok-loading">매칭된 방에서만 입장할 수 있습니다.</p>
+        </div>
+      </GameLayout>
+    );
+  }
 
   const setupLeft = useMemo(() => {
     void playClock;
@@ -123,9 +137,9 @@ export function BingoPage() {
     bingo != null && bingo.phase === 'play' && bingo.winner === 0 && bingo.turn === myColor;
 
   const mySetupLocked = useMemo(() => {
-    if (!bingo || bingo.phase !== 'setup' || !online || !matchRole) return false;
-    return matchRole === 'guest' ? bingo.guestReady : bingo.hostReady;
-  }, [bingo, online, matchRole]);
+    if (!bingo || bingo.phase !== 'setup' || !matchRole) return false;
+    return matchRole === 'guest' ? bingo.guestReady === true : bingo.hostReady === true;
+  }, [bingo, matchRole]);
 
   const onDragStartSetup = useCallback((r: number, c: number) => (e: React.DragEvent) => {
     if (!bingo || bingo.phase !== 'setup' || mySetupLocked) return;
@@ -144,7 +158,7 @@ export function BingoPage() {
   const onDropSetup = useCallback(
     (tr: number, tc: number) => (e: React.DragEvent) => {
       e.preventDefault();
-      if (!bingo || bingo.phase !== 'setup' || mySetupLocked) return;
+      if (!bingo || bingo.phase !== 'setup' || mySetupLocked || !playRoomId) return;
       let fr: number;
       let fc: number;
       try {
@@ -157,77 +171,57 @@ export function BingoPage() {
       }
       if (fr === tr && fc === tc) return;
       const nextG = swapInGrid(bingo.labels, fr, fc, tr, tc);
-      if (online && playRoomId) {
-        void tryBingoSetupGrid(playRoomId, nextG).then((ok) => {
-          if (ok && playRoomId) setSyncBingo(getBingoGame(playRoomId));
-        });
-      } else {
-        setPracticeBingo((prev) => applyBingoSetupGrid(prev, nextG) ?? prev);
-      }
+      void tryBingoSetupGrid(playRoomId, nextG).then((ok) => {
+        if (ok && playRoomId) setSyncBingo(getBingoGame(playRoomId));
+      });
       setDragFrom(null);
     },
-    [bingo, online, playRoomId, mySetupLocked]
+    [bingo, playRoomId, mySetupLocked]
   );
 
   const onSetupComplete = useCallback(() => {
-    if (!bingo || bingo.phase !== 'setup') return;
-    if (online && playRoomId && matchRole) {
-      void tryBingoSetupReady(playRoomId, matchRole === 'guest' ? 'guest' : 'host').then((ok) => {
-        if (ok) setSyncBingo(getBingoGame(playRoomId));
-      });
-      return;
-    }
-    setPracticeBingo((prev) => {
-      const a = applyBingoSetupReady(prev, 'host');
-      if (!a) return prev;
-      return applyBingoSetupReady(a, 'guest') ?? a;
+    if (!bingo || bingo.phase !== 'setup' || !playRoomId || !matchRole) return;
+    void tryBingoSetupReady(playRoomId, matchRole === 'guest' ? 'guest' : 'host').then((ok) => {
+      if (ok) setSyncBingo(getBingoGame(playRoomId));
     });
-  }, [bingo, online, playRoomId, matchRole]);
+  }, [bingo, playRoomId, matchRole]);
 
   const onSelectCell = useCallback(
     (r: number, c: number) => {
-      if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0) return;
-      if (online && bingo.turn !== myColor) return;
+      if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0 || !playRoomId) return;
+      if (bingo.turn !== myColor) return;
       if (bingo.pendingWord != null) return;
       const word = bingo.labels[r]?.[c];
       if (typeof word !== 'string') return;
       const flatM = derivedMarkedGrid(bingo.labels, bingo.subjectId, bingo.markedByIndex);
       if (flatM[r][c] !== 0) return;
-      if (online && playRoomId) {
-        void tryBingoSelect(playRoomId, word, myColor).then((ok) => {
-          if (ok) setSyncBingo(getBingoGame(playRoomId));
-        });
-        return;
-      }
-      setPracticeBingo((prev) => applyBingoSelect(prev, word, prev.turn) ?? prev);
+      void tryBingoSelect(playRoomId, word, myColor).then((ok) => {
+        if (ok) setSyncBingo(getBingoGame(playRoomId));
+      });
     },
-    [bingo, online, playRoomId, myColor]
+    [bingo, playRoomId, myColor]
   );
 
   const onPassTurn = useCallback(() => {
-    if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0) return;
-    if (online && bingo.turn !== myColor) return;
-    if (online && playRoomId) {
-      void tryBingoPass(playRoomId, myColor).then((ok) => {
-        if (ok) setSyncBingo(getBingoGame(playRoomId));
-      });
-      return;
-    }
-    setPracticeBingo((prev) => applyBingoPass(prev, prev.turn) ?? prev);
-  }, [bingo, online, playRoomId, myColor]);
+    if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0 || !playRoomId) return;
+    if (bingo.turn !== myColor) return;
+    void tryBingoPass(playRoomId, myColor).then((ok) => {
+      if (ok) setSyncBingo(getBingoGame(playRoomId));
+    });
+  }, [bingo, playRoomId, myColor]);
 
   const canPassTurn = useMemo(() => {
     if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0) return false;
-    if (online && bingo.turn !== myColor) return false;
+    if (bingo.turn !== myColor) return false;
     return bingo.pendingWord != null;
-  }, [bingo, myColor, online]);
+  }, [bingo, myColor]);
 
   const setupWaitingPeer = useMemo(() => {
-    if (!bingo || bingo.phase !== 'setup' || !online || !matchRole) return false;
-    const myReady = matchRole === 'guest' ? bingo.guestReady : bingo.hostReady;
-    const peerReady = matchRole === 'guest' ? bingo.hostReady : bingo.guestReady;
+    if (!bingo || bingo.phase !== 'setup' || !matchRole) return false;
+    const myReady = matchRole === 'guest' ? bingo.guestReady === true : bingo.hostReady === true;
+    const peerReady = matchRole === 'guest' ? bingo.hostReady === true : bingo.guestReady === true;
     return myReady && !peerReady;
-  }, [bingo, online, matchRole]);
+  }, [bingo, matchRole]);
 
   const goHome = useCallback(() => {
     const rid = sessionStorage.getItem('playRoomId');
@@ -241,6 +235,56 @@ export function BingoPage() {
     sessionStorage.removeItem('playRoomId');
     navigate('/');
   }, [navigate]);
+
+  const opponentLabelsSetup = useMemo(() => {
+    if (!bingo || bingo.phase !== 'setup' || !matchRole) return null;
+    const flat = matchRole === 'host' ? bingo.guestLayoutFlat : bingo.hostLayoutFlat;
+    if (!flat || !validateLayoutFlatForSubject(flat, bingo.subjectId)) return null;
+    return unflattenLabelsFlat(flat);
+  }, [bingo, matchRole]);
+
+  const opponentLabelsPlay = useMemo(() => {
+    if (!bingo || bingo.phase !== 'play') return null;
+    const flat = myColor === 1 ? bingo.guestLayoutFlat : bingo.hostLayoutFlat;
+    if (!flat || !validateLayoutFlatForSubject(flat, bingo.subjectId)) return null;
+    return unflattenLabelsFlat(flat);
+  }, [bingo, myColor]);
+
+  const opponentSetupCells = useMemo(() => {
+    if (!opponentLabelsSetup) return null;
+    return opponentLabelsSetup.map((row, ri) =>
+      row.map((label, ci) => (
+        <div
+          key={`os-${ri}-${ci}`}
+          className="bingo-cell bingo-cell--setup bingo-cell--opponent-preview"
+          role="gridcell"
+        >
+          {label}
+        </div>
+      ))
+    );
+  }, [opponentLabelsSetup]);
+
+  const opponentPlayCells = useMemo(() => {
+    if (!bingo || !opponentLabelsPlay) return null;
+    const marked = derivedMarkedGrid(opponentLabelsPlay, bingo.subjectId, bingo.markedByIndex);
+    const { pendingWord } = bingo;
+    return opponentLabelsPlay.map((row, ri) =>
+      row.map((label, ci) => {
+        const m = marked[ri][ci];
+        const pendingHere = pendingWord != null && pendingWord === label;
+        let cls = 'bingo-cell bingo-cell--opponent-preview';
+        if (m === 1) cls += ' bingo-cell--p1';
+        if (m === 2) cls += ' bingo-cell--p2';
+        if (pendingHere) cls += ' bingo-cell--focus';
+        return (
+          <div key={`op-${ri}-${ci}`} className={cls} role="gridcell">
+            <span className="bingo-cell__label">{label}</span>
+          </div>
+        );
+      })
+    );
+  }, [bingo, opponentLabelsPlay]);
 
   const setupCells = useMemo(() => {
     if (!bingo || bingo.phase !== 'setup') return null;
@@ -275,9 +319,8 @@ export function BingoPage() {
       row.map((label, ci) => {
         const m = marked[ri][ci];
         const pendingHere = pendingWord === label;
-        const isMyTurn = !online || bingo.turn === myColor;
-        const clickable =
-          bingo.winner === 0 && isMyTurn && m === 0 && pendingWord == null;
+        const isMyTurn = bingo.turn === myColor;
+        const clickable = bingo.winner === 0 && isMyTurn && m === 0 && pendingWord == null;
         let cls = 'bingo-cell';
         if (m === 1) cls += ' bingo-cell--p1';
         if (m === 2) cls += ' bingo-cell--p2';
@@ -298,7 +341,7 @@ export function BingoPage() {
         );
       })
     );
-  }, [bingo, myColor, online, onSelectCell]);
+  }, [bingo, myColor, onSelectCell]);
 
   const statusHint = useMemo(() => {
     if (!bingo) return '…';
@@ -315,16 +358,13 @@ export function BingoPage() {
   }, [bingo, myColor, setupWaitingPeer]);
 
   const onBingoRematch = useCallback(() => {
-    if (online && playRoomId) {
-      void tryBingoReset(playRoomId).then((ok) => {
-        if (ok) setSyncBingo(getBingoGame(playRoomId));
-      });
-      return;
-    }
-    setPracticeBingo((prev) => initialBingoState(prev.subjectId));
-  }, [online, playRoomId]);
+    if (!playRoomId) return;
+    void tryBingoReset(playRoomId).then((ok) => {
+      if (ok) setSyncBingo(getBingoGame(playRoomId));
+    });
+  }, [playRoomId]);
 
-  if (online && syncBingo === null) {
+  if (syncBingo === null) {
     return (
       <GameLayout docTitle="reference-final" onBack={goHome}>
         <div className="bingo-play omok-loading-wrap">
@@ -346,6 +386,17 @@ export function BingoPage() {
           {bingo.phase === 'setup' ? (
             <>
               <p className="bingo-subject">{subjectLine}</p>
+              {opponentSetupCells && (
+                <>
+                  <p className="bingo-opponent-caption">{oppName}의 배치</p>
+                  <div className="bingo-board-wrap bingo-board-wrap--opponent">
+                    <div className="bingo-grid-5" role="grid">
+                      {opponentSetupCells.flat()}
+                    </div>
+                  </div>
+                </>
+              )}
+              <p className="bingo-my-board-caption">내 배치</p>
               <div className="bingo-board-wrap">
                 <div className="bingo-grid-5" role="grid">
                   {setupCells?.flat()}
@@ -387,7 +438,7 @@ export function BingoPage() {
                       (oppColor === 1 ? 'bingo-player-name--p1' : 'bingo-player-name--p2')
                     }
                   >
-                    {online ? `${oppName} (${oppColor === 1 ? '호스트' : '게스트'})` : '상대'}
+                    {`${oppName} (${oppColor === 1 ? '호스트' : '게스트'})`}
                   </span>
                 </div>
                 <div
@@ -401,7 +452,19 @@ export function BingoPage() {
                 </div>
               </div>
 
+              {opponentPlayCells && (
+                <>
+                  <p className="bingo-opponent-caption">{oppName}의 판</p>
+                  <div className="bingo-board-wrap bingo-board-wrap--opponent">
+                    <div className="bingo-grid-5" role="grid">
+                      {opponentPlayCells.flat()}
+                    </div>
+                  </div>
+                </>
+              )}
+
               <p className="bingo-subject">{subjectLine}</p>
+              <p className="bingo-my-board-caption">내 판</p>
               <div className="bingo-board-wrap">
                 <div className="bingo-grid-5" role="grid">
                   {playCells?.flat()}
@@ -427,7 +490,7 @@ export function BingoPage() {
                       (myColor === 1 ? 'bingo-player-name--p1' : 'bingo-player-name--p2')
                     }
                   >
-                    {online ? `${selfName} (${myColor === 1 ? '호스트' : '게스트'})` : '나 (연습)'}
+                    {`${selfName} (${myColor === 1 ? '호스트' : '게스트'})`}
                   </span>
                 </div>
                 <div
@@ -452,10 +515,6 @@ export function BingoPage() {
                 </button>
               </div>
             </>
-          )}
-
-          {!online && bingo.phase === 'setup' && (
-            <p className="omok-practice-note">연습 모드 — 완료 한 번에 양쪽 준비 처리로 바로 시작합니다.</p>
           )}
         </div>
       </GameLayout>

@@ -364,6 +364,11 @@ function emptyMarkedByIndex(): (0 | 1 | 2)[] {
   return Array.from({ length: BINGO_CELL_COUNT }, () => 0 as 0 | 1 | 2);
 }
 
+/** `Boolean("false")===true` 방지 — true | 1 | '1' 만 참 */
+function coerceRedisBool(v: unknown): boolean {
+  return v === true || v === 1 || v === '1';
+}
+
 function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -421,8 +426,8 @@ function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
     labels,
     phase: o.phase === 'play' ? 'play' : 'setup',
     setupDeadline: Number(o.setupDeadline) || Date.now() + BINGO_SETUP_MS,
-    hostReady: Boolean(o.hostReady),
-    guestReady: Boolean(o.guestReady),
+    hostReady: coerceRedisBool(o.hostReady),
+    guestReady: coerceRedisBool(o.guestReady),
     turn: o.turn === 2 ? 2 : 1,
     markedByIndex,
     pendingWord,
@@ -581,8 +586,7 @@ function commitPendingMark(state: BingoGameState): BingoGameState | null {
 
 function tryFinishSetupPhase(state: BingoGameState): BingoGameState {
   if (state.phase !== 'setup') return state;
-  const bothReady = state.hostReady && state.guestReady;
-  if (!bothReady) return state;
+  if (state.hostReady !== true || state.guestReady !== true) return state;
 
   let hostLayoutFlat = state.hostLayoutFlat;
   let guestLayoutFlat = state.guestLayoutFlat;
@@ -1158,7 +1162,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         }
         const next: StoredRoom = { ...room, bingo: nextBingo, updatedAt: Date.now() };
         await save(roomId, next);
-        res.status(200).json({ room: next, ok: true });
+        const out = (await getRoomResolved(roomId)) ?? next;
+        res.status(200).json({ room: out, ok: true });
         return;
       }
 

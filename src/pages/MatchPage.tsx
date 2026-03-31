@@ -171,7 +171,6 @@ export function MatchPage() {
         if (!room || room.status !== 'joined' || !room.guestNickname) return;
         navigatedRef.current = true;
         startedRef.current = true;
-        sessionStorage.setItem('opponentNickname', room.guestNickname);
         sessionStorage.setItem('matchRole', 'host');
         void (async () => {
           if (gameId === 'omok') {
@@ -211,9 +210,7 @@ export function MatchPage() {
       setRoomSnap(getRoom(roomIdGuest));
       return;
     }
-    const room = getRoom(roomIdGuest);
     sessionStorage.setItem('nickname', n);
-    if (room) sessionStorage.setItem('opponentNickname', room.hostNickname);
     sessionStorage.setItem('matchRole', 'guest');
     if (gameId === 'omok') {
       await resetOmokGame(roomIdGuest);

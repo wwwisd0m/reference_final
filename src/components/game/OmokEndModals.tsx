@@ -3,7 +3,6 @@ import { useWaitingDotsCount } from '../../hooks/useWaitingDots';
 
 type Props = {
   variant: 'runway' | 'win' | 'lose' | 'draw' | null;
-  online: boolean;
   countdownSec: number;
   /** 내가 재매칭(Final)을 눌러 상대를 기다리는 중 */
   finalWaiting: boolean;
@@ -12,8 +11,6 @@ type Props = {
   onRunwayOk: () => void;
   onFinal: () => void;
   onLeaveFirst: () => void;
-  practiceOnAgain: () => void;
-  practiceOnHome: () => void;
 };
 
 function formatMmSs(totalSec: number): string {
@@ -39,15 +36,12 @@ function OpponentWaitingDots() {
 
 export function OmokEndModals({
   variant,
-  online,
   countdownSec,
   finalWaiting,
   opponentName,
   onRunwayOk,
   onFinal,
   onLeaveFirst,
-  practiceOnAgain,
-  practiceOnHome,
 }: Props) {
   if (!variant) return null;
 
@@ -65,29 +59,6 @@ export function OmokEndModals({
           <div className="omok-end-figma-actions omok-end-figma-actions--single">
             <button type="button" className="omok-end-pill omok-end-pill--ok" onClick={onRunwayOk}>
               OK
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!online) {
-    const title = variant === 'win' ? 'YOU WIN' : variant === 'lose' ? 'YOU LOSE' : 'DRAW';
-    const id = variant === 'draw' ? 'draw' : variant === 'win' ? 'win' : 'lose';
-    return (
-      <div className="omok-end-overlay" role="presentation">
-        <div id={id} className="omok-end-card omok-end-card--figma omok-end-card--practice" role="alertdialog" aria-modal="true" aria-labelledby={`${id}-title`}>
-          <h2 id={`${id}-title`} className="omok-end-figma-title">
-            {title}
-          </h2>
-          <p className="omok-end-practice-note">연습 모드 · 같은 기기에서 흑·백을 번갈아 둔 결과입니다.</p>
-          <div className="omok-end-figma-actions">
-            <button type="button" className="omok-end-pill omok-end-pill--border" onClick={practiceOnAgain}>
-              한판 더
-            </button>
-            <button type="button" className="omok-end-pill omok-end-pill--border" onClick={practiceOnHome}>
-              홈으로
             </button>
           </div>
         </div>

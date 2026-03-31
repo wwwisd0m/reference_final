@@ -31,8 +31,7 @@
   margin-block: 0;
 }
 
-.omok-end-card--online-end,
-.omok-end-card--practice {
+.omok-end-card--online-end {
   min-height: 200px;
 }
 
@@ -69,16 +68,6 @@
   line-height: normal;
   color: #646464;
   text-transform: uppercase;
-}
-
-.omok-end-practice-note {
-  margin: 0 0 16px;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1.45;
-  text-align: center;
-  color: #949494;
-  letter-spacing: -0.1px;
 }
 
 .omok-end-runway-desc {

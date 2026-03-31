@@ -54,7 +54,7 @@ export function validateLayoutFlatForSubject(
 
 export type BingoGameState = {
   subjectId: BingoSubjectId;
-  /** 내 판 배치 (연습·로컬 병합). 서버는 동기화하지 않음 */
+  /** 내 판 배치 (로컬 로비 병합). 원격은 서버 layoutFlat 기준 */
   labels: string[][];
   phase: BingoGamePhase;
   setupDeadline: number;
@@ -82,9 +82,6 @@ function shuffleInPlace<T>(arr: T[]): void {
   }
 }
 
-/** 연습 모드 등 서버·방 `subjectId` 없이 쓸 때만 사용 (매칭 빙고 주제와 무관) */
-export const PRACTICE_DEFAULT_BINGO_SUBJECT: BingoSubjectId = 'fruit';
-
 export function buildShuffledGrid5(subjectId: BingoSubjectId): string[][] {
   const pool = [...POOLS[subjectId]];
   shuffleInPlace(pool);
@@ -100,7 +97,7 @@ export function emptyMarkedByIndex(): (0 | 1 | 2)[] {
   return Array.from({ length: BINGO_CELL_COUNT }, () => 0 as 0 | 1 | 2);
 }
 
-/** 반드시 방·서버에서 정해진 `subjectId`로 생성 (연습은 `PRACTICE_DEFAULT_BINGO_SUBJECT` 등) */
+/** 방·서버에서 정해진 `subjectId`로 생성 */
 export function initialBingoState(subjectId: BingoSubjectId): BingoGameState {
   return {
     subjectId,
@@ -121,8 +118,16 @@ export function initialBingoState(subjectId: BingoSubjectId): BingoGameState {
   };
 }
 
-export function resetBingoState(subjectId: BingoSubjectId = PRACTICE_DEFAULT_BINGO_SUBJECT): BingoGameState {
+export function resetBingoState(subjectId: BingoSubjectId): BingoGameState {
   return initialBingoState(subjectId);
+}
+
+/**
+ * Redis/JSON 불리언 안전 파싱. `Boolean("false") === true` 방지.
+ * true | 1 | '1' 만 참.
+ */
+export function coerceRedisBool(v: unknown): boolean {
+  return v === true || v === 1 || v === '1';
 }
 
 /** Redis 등 구형 JSON(marked 2D) → 단어 인덱스 형식 */
@@ -184,8 +189,8 @@ export function coerceBingoGameState(raw: unknown): BingoGameState | null {
     labels,
     phase: o.phase === 'play' ? 'play' : 'setup',
     setupDeadline: Number(o.setupDeadline) || Date.now() + BINGO_SETUP_MS,
-    hostReady: Boolean(o.hostReady),
-    guestReady: Boolean(o.guestReady),
+    hostReady: coerceRedisBool(o.hostReady),
+    guestReady: coerceRedisBool(o.guestReady),
     turn: o.turn === 2 ? 2 : 1,
     markedByIndex,
     pendingWord,
@@ -358,8 +363,7 @@ function commitPendingMark(state: BingoGameState): BingoGameState | null {
 /** setup → play — 반드시 호스트·게스트 모두 완료를 눌러야 함 (시간 초과만으로는 시작 안 함) */
 export function tryFinishSetupPhase(state: BingoGameState): BingoGameState {
   if (state.phase !== 'setup') return state;
-  const bothReady = state.hostReady && state.guestReady;
-  if (!bothReady) return state;
+  if (state.hostReady !== true || state.guestReady !== true) return state;
 
   let hostLayoutFlat = state.hostLayoutFlat;
   let guestLayoutFlat = state.guestLayoutFlat;
@@ -448,7 +452,7 @@ export function applyBingoSetupGrid(state: BingoGameState, labels: string[][]): 
 }
 
 /**
- * layoutFlat: 완료 시점 25단어(행 우선). 생략 시 현재 labels 로 연습 모드용.
+ * layoutFlat: 완료 시점 25단어(행 우선). 생략 시 현재 labels 사용.
  */
 export function applyBingoSetupReady(
   state: BingoGameState,
