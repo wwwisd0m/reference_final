@@ -6,8 +6,6 @@ import {
   BINGO_PLAY_TURN_MS,
   BINGO_SUBJECT_LABEL,
   derivedMarkedGrid,
-  unflattenLabelsFlat,
-  validateLayoutFlatForSubject,
   type BingoGameState,
 } from '../lib/bingoEngine';
 import {
@@ -234,56 +232,6 @@ export function BingoPage() {
     navigate('/');
   }, [navigate]);
 
-  const opponentLabelsSetup = useMemo(() => {
-    if (!bingo || bingo.phase !== 'setup' || !matchRole) return null;
-    const flat = matchRole === 'host' ? bingo.guestLayoutFlat : bingo.hostLayoutFlat;
-    if (!flat || !validateLayoutFlatForSubject(flat, bingo.subjectId)) return null;
-    return unflattenLabelsFlat(flat);
-  }, [bingo, matchRole]);
-
-  const opponentLabelsPlay = useMemo(() => {
-    if (!bingo || bingo.phase !== 'play') return null;
-    const flat = myColor === 1 ? bingo.guestLayoutFlat : bingo.hostLayoutFlat;
-    if (!flat || !validateLayoutFlatForSubject(flat, bingo.subjectId)) return null;
-    return unflattenLabelsFlat(flat);
-  }, [bingo, myColor]);
-
-  const opponentSetupCells = useMemo(() => {
-    if (!opponentLabelsSetup) return null;
-    return opponentLabelsSetup.map((row, ri) =>
-      row.map((label, ci) => (
-        <div
-          key={`os-${ri}-${ci}`}
-          className="bingo-cell bingo-cell--setup bingo-cell--opponent-preview"
-          role="gridcell"
-        >
-          {label}
-        </div>
-      ))
-    );
-  }, [opponentLabelsSetup]);
-
-  const opponentPlayCells = useMemo(() => {
-    if (!bingo || !opponentLabelsPlay) return null;
-    const marked = derivedMarkedGrid(opponentLabelsPlay, bingo.subjectId, bingo.markedByIndex);
-    const { pendingWord } = bingo;
-    return opponentLabelsPlay.map((row, ri) =>
-      row.map((label, ci) => {
-        const m = marked[ri][ci];
-        const pendingHere = pendingWord != null && pendingWord === label;
-        let cls = 'bingo-cell bingo-cell--opponent-preview';
-        if (m === 1) cls += ' bingo-cell--p1';
-        if (m === 2) cls += ' bingo-cell--p2';
-        if (pendingHere) cls += ' bingo-cell--focus';
-        return (
-          <div key={`op-${ri}-${ci}`} className={cls} role="gridcell">
-            <span className="bingo-cell__label">{label}</span>
-          </div>
-        );
-      })
-    );
-  }, [bingo, opponentLabelsPlay]);
-
   const setupCells = useMemo(() => {
     if (!bingo || bingo.phase !== 'setup') return null;
     const { labels } = bingo;
@@ -384,16 +332,6 @@ export function BingoPage() {
           {bingo.phase === 'setup' ? (
             <>
               <p className="bingo-subject">{subjectLine}</p>
-              {opponentSetupCells && (
-                <>
-                  <p className="bingo-opponent-caption">{oppName}의 배치</p>
-                  <div className="bingo-board-wrap bingo-board-wrap--opponent">
-                    <div className="bingo-grid-5" role="grid">
-                      {opponentSetupCells.flat()}
-                    </div>
-                  </div>
-                </>
-              )}
               <p className="bingo-my-board-caption">내 배치</p>
               <div className="bingo-board-wrap">
                 <div className="bingo-grid-5" role="grid">
@@ -449,17 +387,6 @@ export function BingoPage() {
                   {bingo.winner === 0 && bingo.turn === oppColor ? String(turnSecs) : '—'}
                 </div>
               </div>
-
-              {opponentPlayCells && (
-                <>
-                  <p className="bingo-opponent-caption">{oppName}의 판</p>
-                  <div className="bingo-board-wrap bingo-board-wrap--opponent">
-                    <div className="bingo-grid-5" role="grid">
-                      {opponentPlayCells.flat()}
-                    </div>
-                  </div>
-                </>
-              )}
 
               <p className="bingo-subject">{subjectLine}</p>
               <p className="bingo-my-board-caption">내 판</p>
