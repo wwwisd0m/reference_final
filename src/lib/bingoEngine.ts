@@ -228,6 +228,48 @@ export function unflattenLabelsFlat(flat: string[]): string[][] {
   return out;
 }
 
+/** 같은 행에서 `fromCol` 단어를 빼 `toCol`에 넣어 가로로 한 칸씩 밀림 (빈 칸 없음) */
+export function slideRowLabels(labels: string[][], rowIdx: number, fromCol: number, toCol: number): string[][] {
+  if (
+    rowIdx < 0 ||
+    rowIdx >= BINGO_SIZE ||
+    fromCol < 0 ||
+    fromCol >= BINGO_SIZE ||
+    toCol < 0 ||
+    toCol >= BINGO_SIZE ||
+    fromCol === toCol
+  ) {
+    return labels;
+  }
+  const next = labels.map((r) => [...r]);
+  const row = next[rowIdx];
+  const [w] = row.splice(fromCol, 1);
+  row.splice(toCol, 0, w);
+  return next;
+}
+
+/** 같은 열에서 `fromRow` 단어를 빼 `toRow`에 넣어 세로로 한 칸씩 밀림 */
+export function slideColLabels(labels: string[][], colIdx: number, fromRow: number, toRow: number): string[][] {
+  if (
+    colIdx < 0 ||
+    colIdx >= BINGO_SIZE ||
+    fromRow < 0 ||
+    fromRow >= BINGO_SIZE ||
+    toRow < 0 ||
+    toRow >= BINGO_SIZE ||
+    fromRow === toRow
+  ) {
+    return labels;
+  }
+  const next = labels.map((r) => [...r]);
+  const colWords: string[] = [];
+  for (let r = 0; r < BINGO_SIZE; r++) colWords.push(next[r][colIdx]);
+  const [w] = colWords.splice(fromRow, 1);
+  colWords.splice(toRow, 0, w);
+  for (let r = 0; r < BINGO_SIZE; r++) next[r][colIdx] = colWords[r];
+  return next;
+}
+
 /** 행 우선 flat에서 `from`칸 항목을 빼 `to`칸 위치에 넣어 나머지가 한 칸씩 밀리도록 함 (배치 드래그용) */
 export function insertFlatReorder(flat: string[], from: number, to: number): string[] {
   if (from === to || from < 0 || to < 0 || from >= flat.length || to >= flat.length) {

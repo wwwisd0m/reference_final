@@ -5,12 +5,13 @@ import { GameLayout } from '../components/game/GameLayout';
 import { ExcelMotionLoading } from '../components/excel/ExcelMotionLoading';
 import {
   BINGO_PLAY_TURN_MS,
+  BINGO_SIZE,
   BINGO_SUBJECT_LABEL,
   coerceBingoWinner,
   derivedMarkedGrid,
   flattenLabels,
-  insertFlatReorder,
-  unflattenLabelsFlat,
+  slideColLabels,
+  slideRowLabels,
   type BingoGameState,
 } from '../lib/bingoEngine';
 import {
@@ -41,6 +42,41 @@ import {
 } from '../lib/omokRematch';
 import { playPageExitPathIfInvalid, syncPlaySessionFromUrl } from '../lib/playSession';
 import './game-play.css';
+
+const BINGO_SLIDE_AXIS_LOCK_PX = 12;
+const BINGO_SLIDE_FLIP_MS = 180;
+
+function hitBingoCellFromPoint(
+  gridEl: HTMLElement,
+  clientX: number,
+  clientY: number
+): { r: number; c: number } | null {
+  const rect = gridEl.getBoundingClientRect();
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+    return null;
+  }
+  const c = Math.min(
+    BINGO_SIZE - 1,
+    Math.max(0, Math.floor(((clientX - rect.left) / rect.width) * BINGO_SIZE))
+  );
+  const r = Math.min(
+    BINGO_SIZE - 1,
+    Math.max(0, Math.floor(((clientY - rect.top) / rect.height) * BINGO_SIZE))
+  );
+  return { r, c };
+}
+
+type SetupPointerSlide = {
+  word: string;
+  fromR: number;
+  fromC: number;
+  startX: number;
+  startY: number;
+  axis: 'row' | 'col' | null;
+  hoverR: number;
+  hoverC: number;
+  pointerId: number;
+};
 
 type Color = 1 | 2;
 type EndModal = 'runway' | 'win' | 'lose' | 'draw' | null;
@@ -86,9 +122,10 @@ export function BingoPage() {
 
   const [syncBingo, setSyncBingo] = useState<BingoGameState | null>(null);
   const [playClock, setPlayClock] = useState(0);
-  /** 셋업: 드래그 중인 단어(행 우선 재배치 미리보기) */
-  const [dragSourceWord, setDragSourceWord] = useState<string | null>(null);
-  const [dragHover, setDragHover] = useState<{ r: number; c: number } | null>(null);
+  /** 셋업: 포인터 슬라이드(가로=해당 행, 세로=해당 열만 밀기) */
+  const setupGridRef = useRef<HTMLDivElement | null>(null);
+  const setupDragRef = useRef<SetupPointerSlide | null>(null);
+  const [setupDrag, setSetupDrag] = useState<SetupPointerSlide | null>(null);
   const [endModal, setEndModal] = useState<EndModal>(null);
   const [rematch, setRematch] = useState(() => (playRoomId ? getRematch(playRoomId) : null));
   const [abandonSnap, setAbandonSnap] = useState(() => (playRoomId ? getAbandon(playRoomId) : null));
@@ -270,15 +307,12 @@ export function BingoPage() {
 
   const setupPreviewLabels = useMemo((): string[][] | null => {
     if (!bingo || bingo.phase !== 'setup') return null;
-    if (!dragSourceWord) return bingo.labels;
-    const flat = flattenLabels(bingo.labels);
-    const fromIdx = flat.indexOf(dragSourceWord);
-    if (fromIdx < 0) return bingo.labels;
-    if (!dragHover) return bingo.labels;
-    const toIdx = dragHover.r * 5 + dragHover.c;
-    if (fromIdx === toIdx) return bingo.labels;
-    return unflattenLabelsFlat(insertFlatReorder(flat, fromIdx, toIdx));
-  }, [bingo, dragSourceWord, dragHover]);
+    const s = setupDrag;
+    if (!s?.axis) return bingo.labels;
+    if (s.fromR === s.hoverR && s.fromC === s.hoverC) return bingo.labels;
+    if (s.axis === 'row') return slideRowLabels(bingo.labels, s.fromR, s.fromC, s.hoverC);
+    return slideColLabels(bingo.labels, s.fromC, s.fromR, s.hoverR);
+  }, [bingo, setupDrag]);
 
   const setupPreviewSig = useMemo(
     () => (setupPreviewLabels ? flattenLabels(setupPreviewLabels).join('|') : ''),
@@ -289,8 +323,8 @@ export function BingoPage() {
   const lastFlipRects = useRef<Map<string, DOMRect> | null>(null);
 
   useLayoutEffect(() => {
-    if (!bingo || bingo.phase !== 'setup' || !dragSourceWord || !setupPreviewLabels) {
-      if (!dragSourceWord) lastFlipRects.current = null;
+    if (!bingo || bingo.phase !== 'setup' || !setupDrag || !setupPreviewLabels) {
+      if (!setupDrag) lastFlipRects.current = null;
       return;
     }
     const flat = flattenLabels(setupPreviewLabels);
@@ -300,6 +334,7 @@ export function BingoPage() {
       if (el) newRects.set(w, el.getBoundingClientRect());
     }
     const prev = lastFlipRects.current;
+    const flipMs = BINGO_SLIDE_FLIP_MS;
     if (prev && newRects.size > 0) {
       for (const w of flat) {
         const el = wordFlipRefs.current.get(w);
@@ -313,70 +348,104 @@ export function BingoPage() {
             el.style.transition = 'none';
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                el.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+                el.style.transition = `transform ${flipMs}ms cubic-bezier(0.22, 1, 0.36, 1)`;
                 el.style.transform = '';
               });
             });
             window.setTimeout(() => {
               el.style.transition = '';
-            }, 280);
+            }, flipMs + 40);
           }
         }
       }
     }
     lastFlipRects.current = newRects;
-  }, [bingo?.phase, dragSourceWord, setupPreviewSig]);
+  }, [bingo?.phase, setupDrag, setupPreviewSig]);
 
-  const onDragStartSetup = useCallback(
-    (word: string) => (e: React.DragEvent) => {
-      if (!bingo || bingo.phase !== 'setup' || mySetupLocked) return;
-      e.dataTransfer.setData('application/bingo-word', word);
-      e.dataTransfer.effectAllowed = 'move';
-      setDragSourceWord(word);
-      setDragHover(null);
+  const patchSetupPointerDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const sess = setupDragRef.current;
+    const grid = setupGridRef.current;
+    if (!sess || sess.pointerId !== e.pointerId || !grid) return;
+    const dx = e.clientX - sess.startX;
+    const dy = e.clientY - sess.startY;
+    let axis = sess.axis;
+    if (!axis) {
+      const dist2 = dx * dx + dy * dy;
+      if (dist2 >= BINGO_SLIDE_AXIS_LOCK_PX * BINGO_SLIDE_AXIS_LOCK_PX) {
+        axis = Math.abs(dx) >= Math.abs(dy) ? 'row' : 'col';
+      }
+    }
+    const hit = hitBingoCellFromPoint(grid, e.clientX, e.clientY);
+    let hoverR = sess.hoverR;
+    let hoverC = sess.hoverC;
+    if (axis === 'row') {
+      hoverR = sess.fromR;
+      hoverC = hit ? hit.c : sess.hoverC;
+    } else if (axis === 'col') {
+      hoverR = hit ? hit.r : sess.hoverR;
+      hoverC = sess.fromC;
+    }
+    if (axis === sess.axis && hoverR === sess.hoverR && hoverC === sess.hoverC) return;
+    const next: SetupPointerSlide = { ...sess, axis: axis ?? sess.axis, hoverR, hoverC };
+    setupDragRef.current = next;
+    setSetupDrag(next);
+  }, []);
+
+  const finishSetupPointer = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>, aborted: boolean) => {
+      const sess = setupDragRef.current;
+      if (!sess || sess.pointerId !== e.pointerId) return;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* noop */
+      }
+      setupDragRef.current = null;
+      setSetupDrag(null);
+
+      if (aborted || !bingo || bingo.phase !== 'setup' || mySetupLocked || !playRoomId) return;
+      if (!sess.axis) return;
+      if (sess.fromR === sess.hoverR && sess.fromC === sess.hoverC) return;
+      const nextG =
+        sess.axis === 'row'
+          ? slideRowLabels(bingo.labels, sess.fromR, sess.fromC, sess.hoverC)
+          : slideColLabels(bingo.labels, sess.fromC, sess.fromR, sess.hoverR);
+      void tryBingoSetupGrid(playRoomId, nextG).then((ok) => {
+        if (ok && playRoomId) setSyncBingo(getBingoGame(playRoomId));
+      });
+    },
+    [bingo, playRoomId, mySetupLocked]
+  );
+
+  const onSetupPointerDown = useCallback(
+    (label: string, fromR: number, fromC: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+      if (mySetupLocked || !bingo || bingo.phase !== 'setup') return;
+      if (!e.isPrimary) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const s: SetupPointerSlide = {
+        word: label,
+        fromR,
+        fromC,
+        startX: e.clientX,
+        startY: e.clientY,
+        axis: null,
+        hoverR: fromR,
+        hoverC: fromC,
+        pointerId: e.pointerId,
+      };
+      setupDragRef.current = s;
+      setSetupDrag(s);
     },
     [bingo, mySetupLocked]
   );
 
-  const onDragEndSetup = useCallback(() => {
-    setDragSourceWord(null);
-    setDragHover(null);
+  const onSetupLostPointerCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (setupDragRef.current?.pointerId !== e.pointerId) return;
+    setupDragRef.current = null;
+    setSetupDrag(null);
   }, []);
-
-  const onDragOverGridSetup = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  const onDragOverCellSetup = useCallback((tr: number, tc: number) => (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragHover((h) => (h?.r === tr && h?.c === tc ? h : { r: tr, c: tc }));
-  }, []);
-
-  const onDropSetup = useCallback(
-    (tr: number, tc: number) => (e: React.DragEvent) => {
-      e.preventDefault();
-      if (!bingo || bingo.phase !== 'setup' || mySetupLocked || !playRoomId) return;
-      const word = e.dataTransfer.getData('application/bingo-word');
-      if (!word) return;
-      const flat = flattenLabels(bingo.labels);
-      const fromIdx = flat.indexOf(word);
-      const toIdx = tr * 5 + tc;
-      if (fromIdx < 0 || fromIdx === toIdx) {
-        setDragSourceWord(null);
-        setDragHover(null);
-        return;
-      }
-      const nextG = unflattenLabelsFlat(insertFlatReorder(flat, fromIdx, toIdx));
-      void tryBingoSetupGrid(playRoomId, nextG).then((ok) => {
-        if (ok && playRoomId) setSyncBingo(getBingoGame(playRoomId));
-      });
-      setDragSourceWord(null);
-      setDragHover(null);
-    },
-    [bingo, playRoomId, mySetupLocked]
-  );
 
   const onSetupComplete = useCallback(() => {
     if (!bingo || bingo.phase !== 'setup' || !playRoomId || !matchRole) return;
@@ -497,8 +566,14 @@ export function BingoPage() {
     if (!bingo || bingo.phase !== 'setup' || !setupPreviewLabels) return null;
     return setupPreviewLabels.map((row, ri) =>
       row.map((label, ci) => {
-        const dropHere = Boolean(dragSourceWord && dragHover?.r === ri && dragHover?.c === ci);
-        const draggingWord = dragSourceWord === label;
+        const s = setupDrag;
+        const dropHere = Boolean(
+          s?.axis &&
+            s.hoverR === ri &&
+            s.hoverC === ci &&
+            (s.fromR !== s.hoverR || s.fromC !== s.hoverC)
+        );
+        const draggingWord = s?.word === label;
         return (
           <div
             key={label}
@@ -507,17 +582,17 @@ export function BingoPage() {
             }}
             role="button"
             tabIndex={0}
-            draggable={!mySetupLocked}
             className={
-              'bingo-cell bingo-cell--setup bingo-cell--setup-insert' +
+              'bingo-cell bingo-cell--setup bingo-cell--setup-slide' +
               (dropHere ? ' bingo-cell--drop-target' : '') +
-              (draggingWord && dragSourceWord ? ' bingo-cell--drag-source' : '')
+              (draggingWord && s ? ' bingo-cell--drag-source' : '')
             }
             style={{ gridRow: ri + 1, gridColumn: ci + 1 }}
-            onDragStart={onDragStartSetup(label)}
-            onDragEnd={onDragEndSetup}
-            onDragOver={onDragOverCellSetup(ri, ci)}
-            onDrop={onDropSetup(ri, ci)}
+            onPointerDown={onSetupPointerDown(label, ri, ci)}
+            onPointerMove={patchSetupPointerDrag}
+            onPointerUp={(e) => finishSetupPointer(e, false)}
+            onPointerCancel={(e) => finishSetupPointer(e, true)}
+            onLostPointerCapture={onSetupLostPointerCapture}
           >
             {label}
           </div>
@@ -527,13 +602,12 @@ export function BingoPage() {
   }, [
     bingo,
     setupPreviewLabels,
-    dragHover,
-    dragSourceWord,
+    setupDrag,
     mySetupLocked,
-    onDragStartSetup,
-    onDragEndSetup,
-    onDragOverCellSetup,
-    onDropSetup,
+    onSetupPointerDown,
+    patchSetupPointerDrag,
+    finishSetupPointer,
+    onSetupLostPointerCapture,
   ]);
 
   const playCells = useMemo(() => {
@@ -572,7 +646,7 @@ export function BingoPage() {
     if (w !== 0) return '패배했습니다.';
     if (bingo.phase === 'setup') {
       if (setupWaitingPeer) return '잠시만요 — 상대 준비를 기다리는 중입니다.';
-      return '드래그하여 순서를 바꾼 뒤 완료를 누르세요. (호스트·게스트 모두 완료 시 시작)';
+      return '셀을 밀어 가로 줄·세로 줄 안에서 순서를 바꾼 뒤 완료를 누르세요. (호스트·게스트 모두 완료 시 시작)';
     }
     if (bingo.turn !== myColor) return '잠시만요 — 상대 차례입니다.';
     if (bingo.pendingWord != null) return '이전 대기 중인 선택이 있습니다. 턴 넘기기로 확정하세요.';
@@ -616,15 +690,15 @@ export function BingoPage() {
               <p className="bingo-my-board-caption">내 배치</p>
               <div className="bingo-board-wrap">
                 <div
-                  className="bingo-grid-5 bingo-grid-5--setup-insert"
+                  ref={setupGridRef}
+                  className="bingo-grid-5 bingo-grid-5--setup-slide"
                   role="grid"
-                  onDragOver={onDragOverGridSetup}
                 >
                   {setupCells?.flat()}
                 </div>
               </div>
               <div className="bingo-footer-row">
-                <p className="bingo-hint">드래그해서 순서를 바꾸세요</p>
+                <p className="bingo-hint">가로·세로로 밀어 같은 줄 안에서 순서를 바꾸세요</p>
                 <div className="omok-player-row__time omok-player-row__time--active" aria-live="polite">
                   {setupLeft}
                 </div>

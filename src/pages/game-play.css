@@ -414,14 +414,15 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   background: var(--bingo-cell-bg);
 }
 
-/* A_G2_bingo_02 / 배치: 명시적 grid 배치 + 삽입 미리보기 FLIP */
-.bingo-grid-5--setup-insert {
+/* A_G2_bingo_02 / 배치: 행·열 슬라이드 + FLIP (터치: 스크롤 충돌 방지) */
+.bingo-grid-5--setup-slide {
   grid-template-rows: repeat(5, 1fr);
   align-items: stretch;
   justify-items: stretch;
+  touch-action: none;
 }
 
-.bingo-grid-5--setup-insert .bingo-cell--setup-insert {
+.bingo-grid-5--setup-slide .bingo-cell--setup-slide {
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -429,6 +430,7 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   box-sizing: border-box;
   position: relative;
   z-index: 0;
+  touch-action: none;
 }
 
 .bingo-cell--drop-target {
