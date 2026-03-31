@@ -87,13 +87,7 @@ export function HomePage() {
             }
             onClick={() => setSelectedGame('omok')}
           >
-            <img
-              src={selectedGame === 'omok' ? assets.radioOn : assets.radioOff}
-              alt=""
-              width={14}
-              height={14}
-              className="game-row__radio"
-            />
+            <span className="game-row__radio" aria-hidden />
             <img src={assets.panorama} alt="" width={16} height={16} />
             <span className="game-row__label">5mok.jpg</span>
           </button>
@@ -104,13 +98,7 @@ export function HomePage() {
             }
             onClick={() => setSelectedGame('bingo')}
           >
-            <img
-              src={selectedGame === 'bingo' ? assets.radioOn : assets.radioOff2}
-              alt=""
-              width={14}
-              height={14}
-              className="game-row__radio"
-            />
+            <span className="game-row__radio" aria-hidden />
             <img src={assets.picturePdf} alt="" width={16} height={16} />
             <span className="game-row__label">bingo.pdf</span>
           </button>

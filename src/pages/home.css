@@ -146,7 +146,7 @@
   height: 10px;
   border-radius: 50%;
   border: 1px solid var(--skin-radio-inactive);
-  background: #fff;
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -336,8 +336,21 @@ html[data-theme='vscode'] .nick-field__box {
   font-weight: 600;
 }
 
+/* 게임 선택(5mok / bingo): 미체크 시 원 내부 #fff — Figma radioOff 이미지 대신 CSS */
 .game-row__radio {
   flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1px solid var(--skin-game-unselected);
+  background: #fff;
+  display: block;
+}
+
+.game-row--on .game-row__radio {
+  border-color: var(--skin-game-selected);
+  background: var(--skin-game-selected);
 }
 
 /* —— Next (home 액션) —— */
