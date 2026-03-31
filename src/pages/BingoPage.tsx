@@ -22,6 +22,7 @@ import {
 } from '../lib/bingoSync';
 import { isRemoteLobby } from '../lib/lobbyMode';
 import { getRoom } from '../lib/matchRoom';
+import { playPageExitPathIfInvalid, syncPlaySessionFromUrl } from '../lib/playSession';
 import './game-play.css';
 
 type Color = 1 | 2;
@@ -35,6 +36,7 @@ function swapInGrid(grid: string[][], fr: number, fc: number, tr: number, tc: nu
 }
 
 export function BingoPage() {
+  syncPlaySessionFromUrl();
   const navigate = useNavigate();
   const playRoomId = sessionStorage.getItem('playRoomId');
   const matchRole = sessionStorage.getItem('matchRole') as 'host' | 'guest' | null;
@@ -71,13 +73,9 @@ export function BingoPage() {
   useEffect(() => {
     if (!online || !playRoomId) return;
     const routeIfWrongGame = (): boolean => {
-      const r = getRoom(playRoomId);
-      if (!r) {
-        navigate('/');
-        return true;
-      }
-      if (r.gameId !== 'bingo') {
-        navigate(r.gameId === 'omok' ? '/play/omok' : '/');
+      const exit = playPageExitPathIfInvalid(getRoom(playRoomId), 'bingo');
+      if (exit) {
+        navigate(exit, { replace: true });
         return true;
       }
       return false;

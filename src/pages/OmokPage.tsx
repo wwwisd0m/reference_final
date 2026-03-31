@@ -21,6 +21,7 @@ import {
 } from '../lib/omokRematch';
 import { isRemoteLobby } from '../lib/lobbyMode';
 import { getRoom } from '../lib/matchRoom';
+import { playPageExitPathIfInvalid, syncPlaySessionFromUrl } from '../lib/playSession';
 import {
   ensureOmokGame,
   getOmokGame,
@@ -38,6 +39,7 @@ type Color = 1 | 2;
 type EndModal = 'runway' | 'win' | 'lose' | 'draw' | null;
 
 export function OmokPage() {
+  syncPlaySessionFromUrl();
   const navigate = useNavigate();
   const playRoomId = sessionStorage.getItem('playRoomId');
   const matchRole = sessionStorage.getItem('matchRole') as 'host' | 'guest' | null;
@@ -81,14 +83,24 @@ export function OmokPage() {
 
   useEffect(() => {
     if (!online || !playRoomId) return;
+    const routeIfWrongGame = (): boolean => {
+      const exit = playPageExitPathIfInvalid(getRoom(playRoomId), 'omok');
+      if (exit) {
+        navigate(exit, { replace: true });
+        return true;
+      }
+      return false;
+    };
     void ensureOmokGame(playRoomId).then(() => {
+      if (routeIfWrongGame()) return;
       setOnlineState(getOmokGame(playRoomId));
     });
     const unsub = subscribeOmokGame(playRoomId, () => {
+      if (routeIfWrongGame()) return;
       setOnlineState(getOmokGame(playRoomId));
     });
     return unsub;
-  }, [online, playRoomId]);
+  }, [online, playRoomId, navigate]);
 
   useEffect(() => {
     if (!online || !playRoomId) return;

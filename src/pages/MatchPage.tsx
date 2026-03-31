@@ -98,6 +98,7 @@ export function MatchPage() {
   const { gameId = 'omok' } = useParams();
   const [search] = useSearchParams();
   const { theme } = useTheme();
+  /** 게스트 초대: `?guest=1&room=<roomId>` */
   const guest = search.get('guest') === '1';
   const roomIdGuest = search.get('room') ?? '';
 
@@ -175,10 +176,8 @@ export function MatchPage() {
         void (async () => {
           if (gameId === 'omok') {
             await resetOmokGame(roomIdHost);
-            sessionStorage.setItem('playRoomId', roomIdHost);
-          } else {
-            sessionStorage.removeItem('playRoomId');
           }
+          sessionStorage.setItem('playRoomId', roomIdHost);
           await markRoomStarted(roomIdHost);
           navigate(playPath(gameId));
         })();
@@ -214,10 +213,8 @@ export function MatchPage() {
     sessionStorage.setItem('matchRole', 'guest');
     if (gameId === 'omok') {
       await resetOmokGame(roomIdGuest);
-      sessionStorage.setItem('playRoomId', roomIdGuest);
-    } else {
-      sessionStorage.removeItem('playRoomId');
     }
+    sessionStorage.setItem('playRoomId', roomIdGuest);
     navigate(playPath(gameId));
   }, [gameId, guestNickPlaceholder, navigate, nickGuest, roomIdGuest]);
 

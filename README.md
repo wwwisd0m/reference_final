@@ -52,7 +52,7 @@ npm run preview  # dist 미리보기
 
 ## 폴더 구조 (요약)
 
-- `src/pages/` — 홈, 매칭, 오목·빙고 플레이 (`/play/*`는 매칭 후 `playRoomId`·`matchRole` 없으면 홈으로 보냄. 1인 연습 모드 없음. 플레이 화면 닉네임은 `getRoom(roomId)`의 `hostNickname` / `guestNickname` 사용)  
+- `src/pages/` — 홈, 매칭(`MatchPage`), 오목·빙고 플레이. 매칭 완료 시 호스트·게스트 모두 `sessionStorage`에 `playRoomId`·`matchRole` 저장(빙고·오목 공통). 게스트 초대 링크는 `/match/:gameId?guest=1&room=<roomId>`; 플레이 URL만 공유할 때는 `/play/omok`·`/play/bingo`에 동일 쿼리를 붙이면 진입 시 세션이 보강됩니다. `/play/*`에서 세션이 비어 있으면 홈으로 보냄. 닉네임은 `getRoom(roomId)`의 `hostNickname` / `guestNickname`.  
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts`, `omokRules.ts` — 오목 상태·규칙(쌍삼 금수: 열린 3이 동시에 2개 이상이면 금지, 5목 완성 수는 예외). `api/match-room.ts` 오목 수 두기와 동일 로직 유지  
 - `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
