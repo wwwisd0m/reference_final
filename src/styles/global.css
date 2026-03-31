@@ -102,7 +102,7 @@ html[data-theme='adobe'] {
   --skin-select-inner-bg: #292929;
   --skin-select-inner-border: #474747;
   --skin-label-soft: #7c7c7c;
-  --skin-radio-active-label: #b7b7b7;
+  --skin-radio-active-label: #7ab8ff;
   --skin-radio-inactive: #8a8a8a;
   --skin-title-card-bg: #262626;
   --skin-title-card-border: transparent;
@@ -112,7 +112,8 @@ html[data-theme='adobe'] {
   --skin-input-placeholder: #828282;
   --skin-game-box-bg: #2d2d2d;
   --skin-game-box-border: transparent;
-  --skin-game-selected: #ffffff;
+  /* 게임·스킨 라디오 선택: 흰색은 대비 약함 → 프라이머리 블루 */
+  --skin-game-selected: #1473e6;
   --skin-game-unselected: #b5b5b5;
   --skin-next-bg: #1473e6;
   --skin-next-border: #1473e6;
