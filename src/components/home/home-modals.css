@@ -68,30 +68,12 @@
   position: relative;
   width: 172px;
   min-height: 104px;
-  padding: 27px 40px 16px 25px;
+  padding: 18px 20px 16px 20px;
   box-sizing: border-box;
   background: var(--modal-bug-bg);
   border: 1px solid var(--modal-bug-border);
   border-radius: 2px;
   text-align: left;
-}
-
-.frame-bug__close {
-  position: absolute;
-  top: 9px;
-  right: 11px;
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  line-height: 0;
-  opacity: 0.85;
-}
-
-.frame-bug__close:hover {
-  opacity: 1;
 }
 
 .frame-bug__text {
@@ -182,6 +164,8 @@ html[data-theme='vscode'] {
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 4px;
+  margin-top: 0;
+  /* 버튼 하단과 간격 축소 */
+  transform: translateY(-8px);
   z-index: 100;
 }

@@ -13,9 +13,6 @@ export const ASSETS_EXCEL = {
   line3: 'https://www.figma.com/api/mcp/asset/0bc23341-b509-4b3b-bfc9-aca14157aa4e',
 } as const;
 
-/** bugrepot 프레임 닫기 아이콘 */
-export const BUG_MODAL_CLOSE = 'https://www.figma.com/api/mcp/asset/12613722-e953-4e6f-bf53-fd8264faf0c5';
-
 export const ASSETS_MATCH_EXCEL = {
   arrowBack: 'https://www.figma.com/api/mcp/asset/611e0629-74af-4efc-8b50-64fea8edbe6c',
   gridV: 'https://www.figma.com/api/mcp/asset/41796b5d-cb0b-49a9-9641-d9a2597dad02',
