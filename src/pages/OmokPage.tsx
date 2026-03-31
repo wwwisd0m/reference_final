@@ -10,7 +10,7 @@ import {
   subscribeAbandon,
 } from '../lib/omokAbandon';
 import { OMOK_TURN_MS } from '../lib/omokEngine';
-import { OMOK_SIZE, type OmokStone } from '../lib/omokRules';
+import { isOmokDoubleThreeForbiddenMove, OMOK_SIZE, type OmokStone } from '../lib/omokRules';
 import {
   ensureRematchAfterGameEnd,
   clearRematch,
@@ -54,6 +54,7 @@ export function OmokPage() {
   const [tick, setTick] = useState(0);
   /** 진행 중 타이머 UI 갱신 */
   const [playClock, setPlayClock] = useState(0);
+  const [forbiddenMsg, setForbiddenMsg] = useState<string | null>(null);
   const endHandledRef = useRef(false);
 
   useEffect(() => {
@@ -197,6 +198,11 @@ export function OmokPage() {
     (r: number, c: number) => {
       if (!state || state.winner !== 0 || endModal || !playRoomId) return;
       if (state.turn !== myColor || state.pendingPass != null) return;
+      if (state.board[r][c] !== 0) return;
+      if (isOmokDoubleThreeForbiddenMove(state.board, r, c, myColor)) {
+        setForbiddenMsg('쌍삼은 금지입니다');
+        return;
+      }
       void tryOmokMove(playRoomId, r, c, myColor).then((ok) => {
         if (ok) setOnlineState(getOmokGame(playRoomId));
       });
@@ -309,6 +315,12 @@ export function OmokPage() {
     };
   }, [online, playRoomId, matchRole]);
 
+  useEffect(() => {
+    if (!forbiddenMsg) return;
+    const t = window.setTimeout(() => setForbiddenMsg(null), 2500);
+    return () => clearTimeout(t);
+  }, [forbiddenMsg]);
+
   const cells = useMemo(() => {
     if (!state) return null;
     const { board } = state;
@@ -316,23 +328,29 @@ export function OmokPage() {
     for (let r = 0; r < OMOK_SIZE; r++) {
       for (let c = 0; c < OMOK_SIZE; c++) {
         const v = board[r][c] as OmokStone;
-        const playable =
+        const canTryPlace =
           !endModal &&
           state.winner === 0 &&
           v === 0 &&
           state.pendingPass == null &&
           state.turn === myColor;
+        const doubleThree = canTryPlace && isOmokDoubleThreeForbiddenMove(board, r, c, myColor);
+        const playableHighlight = canTryPlace && !doubleThree;
         out.push(
           <button
             key={`${r}-${c}`}
             type="button"
-            className={'omok-intersection' + (playable ? ' omok-intersection--playable' : '')}
+            className={
+              'omok-intersection' +
+              (playableHighlight ? ' omok-intersection--playable' : '') +
+              (canTryPlace && doubleThree ? ' omok-intersection--forbidden' : '')
+            }
             style={{
               left: `calc(${c} * 100% / 14)`,
               top: `calc(${r} * 100% / 14)`,
             }}
             onClick={() => onCellClick(r, c)}
-            disabled={!playable}
+            disabled={!canTryPlace}
             aria-label={`${r + 1}행 ${c + 1}열`}
           >
             {v === 1 && <span className="omok-stone omok-stone--black" />}
@@ -402,6 +420,11 @@ export function OmokPage() {
           <p className="omok-rules-hint" role="status">
             {statusLine}
           </p>
+          {forbiddenMsg ? (
+            <p className="omok-forbidden-hint" role="alert">
+              {forbiddenMsg}
+            </p>
+          ) : null}
 
           <div className={'omok-player-row' + (bottomRowActive ? ' omok-player-row--turn' : '')}>
             <div className="omok-player-row__left">

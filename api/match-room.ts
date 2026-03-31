@@ -51,18 +51,51 @@ function countLine(
   return n;
 }
 
+const OMOK_LINE_DIRS: [number, number][] = [
+  [0, 1],
+  [1, 0],
+  [1, 1],
+  [1, -1],
+];
+
 function checkOmokWin(board: OmokStone[][], r: number, c: number, color: 1 | 2): boolean {
-  const dirs: [number, number][] = [
-    [0, 1],
-    [1, 0],
-    [1, 1],
-    [1, -1],
-  ];
-  for (const [dr, dc] of dirs) {
+  for (const [dr, dc] of OMOK_LINE_DIRS) {
     const total = 1 + countLine(board, r, c, dr, dc, color) + countLine(board, r, c, -dr, -dc, color);
     if (total >= 5) return true;
   }
   return false;
+}
+
+function countOmokOpenThreesAt(board: OmokStone[][], r: number, c: number, color: 1 | 2): number {
+  let total = 0;
+  for (const [dr, dc] of OMOK_LINE_DIRS) {
+    let tMin = 0;
+    let tMax = 0;
+    while (true) {
+      const nr = r + (tMin - 1) * dr;
+      const nc = c + (tMin - 1) * dc;
+      if (nr < 0 || nr >= OMOK_SIZE || nc < 0 || nc >= OMOK_SIZE || board[nr][nc] !== color) break;
+      tMin--;
+    }
+    while (true) {
+      const nr = r + (tMax + 1) * dr;
+      const nc = c + (tMax + 1) * dc;
+      if (nr < 0 || nr >= OMOK_SIZE || nc < 0 || nc >= OMOK_SIZE || board[nr][nc] !== color) break;
+      tMax++;
+    }
+    for (let a = tMin; a <= tMax - 2; a++) {
+      if (a > 0 || a + 2 < 0) continue;
+      const lr = r + (a - 1) * dr;
+      const lc = c + (a - 1) * dc;
+      const rr = r + (a + 3) * dr;
+      const rc = c + (a + 3) * dc;
+      if (lr < 0 || lr >= OMOK_SIZE || lc < 0 || lc >= OMOK_SIZE) continue;
+      if (rr < 0 || rr >= OMOK_SIZE || rc < 0 || rc >= OMOK_SIZE) continue;
+      if (board[lr][lc] !== 0 || board[rr][rc] !== 0) continue;
+      total++;
+    }
+  }
+  return total;
 }
 
 function isBoardFull(board: OmokStone[][]): boolean {
@@ -148,6 +181,10 @@ function applyOmokPlaceState(
       pendingPass: undefined,
       turnDeadline: undefined,
     };
+  }
+
+  if (countOmokOpenThreesAt(board, r, c, asColor) >= 2) {
+    return null;
   }
 
   if (isBoardFull(board)) {

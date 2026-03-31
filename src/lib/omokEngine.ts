@@ -1,5 +1,6 @@
 import {
   checkOmokWin,
+  countOmokOpenThreesAt,
   emptyOmokBoard,
   isBoardFull,
   type OmokStone,
@@ -107,6 +108,10 @@ export function applyOmokPlaceState(
       pendingPass: undefined,
       turnDeadline: undefined,
     };
+  }
+
+  if (countOmokOpenThreesAt(board, r, c, asColor) >= 2) {
+    return null;
   }
 
   if (isBoardFull(board)) {

@@ -247,6 +247,23 @@ html[data-theme='vscode'] {
   cursor: pointer;
 }
 
+.omok-intersection--forbidden {
+  cursor: pointer;
+}
+
+.omok-intersection--forbidden:hover {
+  background: rgba(200, 120, 40, 0.1);
+  border-radius: 50%;
+}
+
+.omok-forbidden-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: #c27803;
+}
+
 .omok-intersection--playable:hover {
   background: rgba(45, 155, 94, 0.08);
   border-radius: 50%;

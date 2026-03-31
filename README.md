@@ -54,7 +54,7 @@ npm run preview  # dist 미리보기
 
 - `src/pages/` — 홈, 매칭, 오목·빙고 플레이 (`/play/*`는 매칭 후 `playRoomId`·`matchRole` 없으면 홈으로 보냄. 1인 연습 모드 없음. 플레이 화면 닉네임은 `getRoom(roomId)`의 `hostNickname` / `guestNickname` 사용)  
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
-- `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
+- `src/lib/omokSync.ts`, `omokEngine.ts`, `omokRules.ts` — 오목 상태·규칙(쌍삼 금수: 열린 3이 동시에 2개 이상이면 금지, 5목 완성 수는 예외). `api/match-room.ts` 오목 수 두기와 동일 로직 유지  
 - `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
 - `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: `bingoEnsure` 시 서버가 **동일한 초기 `labels` 5×5**를 Redis에 두고, 호스트·게스트가 같은 SUBJECT·같은 25단어에서 시작합니다. **완료** 시 `bingoReady`로 각자 `layoutFlat`을 저장(`hostLayoutFlat` / `guestLayoutFlat`). **`hostReady` / `guestReady`**는 JSON에서 `true`·`1`·`'1'`만 참으로 파싱해 `Boolean("false")===true` 류 오인을 막고, **`hostReady === true` 이고 `guestReady === true` 일 때만** `phase: play`로 전환합니다. 플레이 중 표시는 서버 `markedByIndex`·`pendingWord`(단어 문자열)를 폴링으로 받아 각자 판에 매핑합니다. **`bingo.turn` / 타임아웃**은 Redis·`getRoomResolved` 권한, 원격 클라는 폴링 값만 표시. 레거시 `bingoSubjectId`는 `normalize`에서 `subjectId`로 흡수.  
 
