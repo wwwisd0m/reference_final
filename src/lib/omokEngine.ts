@@ -3,6 +3,7 @@ import {
   countOmokOpenThreesAt,
   emptyOmokBoard,
   isBoardFull,
+  isOmokDoubleThreeForbiddenMove,
   type OmokStone,
   OMOK_SIZE,
 } from './omokRules';
@@ -18,7 +19,7 @@ export type OmokGameState = {
   turn: 1 | 2;
   winner: OmokWinner;
   updatedAt: number;
-  /** 현재 차례가 돌을 두었지만 아직 턴 넘기기 전 */
+  /** 현재 차례: 확정 전 착점(보드에는 아직 없음). 턴 넘기기 시 보드에 반영 */
   pendingPass?: { r: number; c: number } | null;
   /** 이번 차례 종료 시각(ms). 시간 초과 시 자동으로 턴이 넘어감 */
   turnDeadline?: number;
@@ -66,7 +67,12 @@ export function resolveOmokTimeouts(state: OmokGameState): OmokGameState {
     if (Date.now() <= dl) {
       return { ...s, turnDeadline: dl };
     }
-    s = advanceTurnAfterPassOrTimeout({ ...s, pendingPass: undefined });
+    if (s.pendingPass != null) {
+      const committed = commitPendingStoneToBoard(s, s.turn);
+      s = committed ?? advanceTurnAfterPassOrTimeout({ ...s, pendingPass: undefined });
+    } else {
+      s = advanceTurnAfterPassOrTimeout(s);
+    }
     if (s.winner !== 0) return s;
   }
   return s;
@@ -77,22 +83,19 @@ export function omokStateNeedsPersist(before: OmokGameState, after: OmokGameStat
     before.turn !== after.turn ||
     before.turnDeadline !== after.turnDeadline ||
     before.winner !== after.winner ||
+    JSON.stringify(before.board) !== JSON.stringify(after.board) ||
     JSON.stringify(before.pendingPass ?? null) !== JSON.stringify(after.pendingPass ?? null) ||
     before.updatedAt !== after.updatedAt
   );
 }
 
-/** 돌만 두고 턴은 유지(승/무이면 즉시 종료). */
-export function applyOmokPlaceState(
-  state: OmokGameState,
-  r: number,
-  c: number,
-  asColor: 1 | 2
-): OmokGameState | null {
-  const s = resolveOmokTimeouts(state);
+/** pendingPass만 보드에 올리고 승/무/턴 진행(타임아웃 처리 시 resolve 루프에서 사용) */
+function commitPendingStoneToBoard(s: OmokGameState, asColor: 1 | 2): OmokGameState | null {
   if (s.winner !== 0) return null;
   if (s.turn !== asColor) return null;
-  if (s.pendingPass != null) return null;
+  const p = s.pendingPass;
+  if (p == null) return null;
+  const { r, c } = p;
   if (r < 0 || r >= OMOK_SIZE || c < 0 || c >= OMOK_SIZE) return null;
   if (s.board[r][c] !== 0) return null;
 
@@ -101,6 +104,7 @@ export function applyOmokPlaceState(
 
   if (checkOmokWin(board, r, c, asColor)) {
     return {
+      ...s,
       board,
       turn: asColor,
       winner: asColor,
@@ -116,6 +120,7 @@ export function applyOmokPlaceState(
 
   if (isBoardFull(board)) {
     return {
+      ...s,
       board,
       turn: asColor,
       winner: 'draw',
@@ -125,21 +130,43 @@ export function applyOmokPlaceState(
     };
   }
 
-  return {
+  return advanceTurnAfterPassOrTimeout({
     ...s,
     board,
-    pendingPass: { r, c },
-    updatedAt: Date.now(),
-  };
+    pendingPass: undefined,
+  });
 }
 
-/** 턴 넘기기 — 직전에 돌을 둔 경우에만 가능. */
-export function applyOmokPassTurnState(state: OmokGameState, asColor: 1 | 2): OmokGameState | null {
+/** 확정 전 착점만 갱신(보드 불변). 같은 교차점 재클릭 시 취소, 다른 빈칸이면 이동. */
+export function applyOmokPlaceState(
+  state: OmokGameState,
+  r: number,
+  c: number,
+  asColor: 1 | 2
+): OmokGameState | null {
   const s = resolveOmokTimeouts(state);
   if (s.winner !== 0) return null;
   if (s.turn !== asColor) return null;
-  if (s.pendingPass == null) return null;
-  return advanceTurnAfterPassOrTimeout({ ...s, pendingPass: undefined });
+  if (r < 0 || r >= OMOK_SIZE || c < 0 || c >= OMOK_SIZE) return null;
+
+  if (s.pendingPass != null) {
+    if (s.pendingPass.r === r && s.pendingPass.c === c) {
+      return { ...s, pendingPass: undefined, updatedAt: Date.now() };
+    }
+    if (s.board[r][c] !== 0) return null;
+    if (isOmokDoubleThreeForbiddenMove(s.board, r, c, asColor)) return null;
+    return { ...s, pendingPass: { r, c }, updatedAt: Date.now() };
+  }
+
+  if (s.board[r][c] !== 0) return null;
+  if (isOmokDoubleThreeForbiddenMove(s.board, r, c, asColor)) return null;
+  return { ...s, pendingPass: { r, c }, updatedAt: Date.now() };
+}
+
+/** 턴 넘기기 — pending를 보드에 반영한 뒤 승패·턴 진행. */
+export function applyOmokPassTurnState(state: OmokGameState, asColor: 1 | 2): OmokGameState | null {
+  const s = resolveOmokTimeouts(state);
+  return commitPendingStoneToBoard(s, asColor);
 }
 
 export function initialOmokState(): OmokGameState {

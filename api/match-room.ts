@@ -111,6 +111,19 @@ function cloneBoard(b: OmokStone[][]): OmokStone[][] {
   return b.map((row) => [...row]);
 }
 
+function isOmokDoubleThreeForbiddenMove(
+  board: OmokStone[][],
+  r: number,
+  c: number,
+  color: 1 | 2
+): boolean {
+  if (r < 0 || r >= OMOK_SIZE || c < 0 || c >= OMOK_SIZE || board[r][c] !== 0) return false;
+  const b = cloneBoard(board);
+  b[r][c] = color;
+  if (checkOmokWin(b, r, c, color)) return false;
+  return countOmokOpenThreesAt(b, r, c, color) >= 2;
+}
+
 function advanceTurnAfterPassOrTimeout(state: OmokGameState): OmokGameState {
   const nextTurn: 1 | 2 = state.turn === 1 ? 2 : 1;
   return {
@@ -132,40 +145,12 @@ function normalizeOmokState(state: OmokGameState): OmokGameState {
   return state;
 }
 
-function resolveOmokTimeouts(state: OmokGameState): OmokGameState {
-  let s = normalizeOmokState(state);
-  if (s.winner !== 0) return s;
-  for (let i = 0; i < 8; i++) {
-    const dl = s.turnDeadline ?? Date.now() + OMOK_TURN_MS;
-    if (Date.now() <= dl) {
-      return { ...s, turnDeadline: dl };
-    }
-    s = advanceTurnAfterPassOrTimeout({ ...s, pendingPass: undefined });
-    if (s.winner !== 0) return s;
-  }
-  return s;
-}
-
-function omokStateNeedsPersist(before: OmokGameState, after: OmokGameState): boolean {
-  return (
-    before.turn !== after.turn ||
-    before.turnDeadline !== after.turnDeadline ||
-    before.winner !== after.winner ||
-    JSON.stringify(before.pendingPass ?? null) !== JSON.stringify(after.pendingPass ?? null) ||
-    before.updatedAt !== after.updatedAt
-  );
-}
-
-function applyOmokPlaceState(
-  state: OmokGameState,
-  r: number,
-  c: number,
-  asColor: 1 | 2
-): OmokGameState | null {
-  const s = resolveOmokTimeouts(state);
+function commitPendingStoneToBoard(s: OmokGameState, asColor: 1 | 2): OmokGameState | null {
   if (s.winner !== 0) return null;
   if (s.turn !== asColor) return null;
-  if (s.pendingPass != null) return null;
+  const p = s.pendingPass;
+  if (p == null) return null;
+  const { r, c } = p;
   if (r < 0 || r >= OMOK_SIZE || c < 0 || c >= OMOK_SIZE) return null;
   if (s.board[r][c] !== 0) return null;
 
@@ -174,6 +159,7 @@ function applyOmokPlaceState(
 
   if (checkOmokWin(board, r, c, asColor)) {
     return {
+      ...s,
       board,
       turn: asColor,
       winner: asColor,
@@ -189,6 +175,7 @@ function applyOmokPlaceState(
 
   if (isBoardFull(board)) {
     return {
+      ...s,
       board,
       turn: asColor,
       winner: 'draw',
@@ -198,20 +185,71 @@ function applyOmokPlaceState(
     };
   }
 
-  return {
+  return advanceTurnAfterPassOrTimeout({
     ...s,
     board,
-    pendingPass: { r, c },
-    updatedAt: Date.now(),
-  };
+    pendingPass: undefined,
+  });
+}
+
+function resolveOmokTimeouts(state: OmokGameState): OmokGameState {
+  let s = normalizeOmokState(state);
+  if (s.winner !== 0) return s;
+  for (let i = 0; i < 8; i++) {
+    const dl = s.turnDeadline ?? Date.now() + OMOK_TURN_MS;
+    if (Date.now() <= dl) {
+      return { ...s, turnDeadline: dl };
+    }
+    if (s.pendingPass != null) {
+      const committed = commitPendingStoneToBoard(s, s.turn);
+      s = committed ?? advanceTurnAfterPassOrTimeout({ ...s, pendingPass: undefined });
+    } else {
+      s = advanceTurnAfterPassOrTimeout(s);
+    }
+    if (s.winner !== 0) return s;
+  }
+  return s;
+}
+
+function omokStateNeedsPersist(before: OmokGameState, after: OmokGameState): boolean {
+  return (
+    before.turn !== after.turn ||
+    before.turnDeadline !== after.turnDeadline ||
+    before.winner !== after.winner ||
+    JSON.stringify(before.board) !== JSON.stringify(after.board) ||
+    JSON.stringify(before.pendingPass ?? null) !== JSON.stringify(after.pendingPass ?? null) ||
+    before.updatedAt !== after.updatedAt
+  );
+}
+
+function applyOmokPlaceState(
+  state: OmokGameState,
+  r: number,
+  c: number,
+  asColor: 1 | 2
+): OmokGameState | null {
+  const s = resolveOmokTimeouts(state);
+  if (s.winner !== 0) return null;
+  if (s.turn !== asColor) return null;
+  if (r < 0 || r >= OMOK_SIZE || c < 0 || c >= OMOK_SIZE) return null;
+
+  if (s.pendingPass != null) {
+    if (s.pendingPass.r === r && s.pendingPass.c === c) {
+      return { ...s, pendingPass: undefined, updatedAt: Date.now() };
+    }
+    if (s.board[r][c] !== 0) return null;
+    if (isOmokDoubleThreeForbiddenMove(s.board, r, c, asColor)) return null;
+    return { ...s, pendingPass: { r, c }, updatedAt: Date.now() };
+  }
+
+  if (s.board[r][c] !== 0) return null;
+  if (isOmokDoubleThreeForbiddenMove(s.board, r, c, asColor)) return null;
+  return { ...s, pendingPass: { r, c }, updatedAt: Date.now() };
 }
 
 function applyOmokPassTurnState(state: OmokGameState, asColor: 1 | 2): OmokGameState | null {
   const s = resolveOmokTimeouts(state);
-  if (s.winner !== 0) return null;
-  if (s.turn !== asColor) return null;
-  if (s.pendingPass == null) return null;
-  return advanceTurnAfterPassOrTimeout({ ...s, pendingPass: undefined });
+  return commitPendingStoneToBoard(s, asColor);
 }
 
 function initialOmokState(): OmokGameState {

@@ -209,7 +209,7 @@ export function OmokPage() {
   const onCellClick = useCallback(
     (r: number, c: number) => {
       if (!state || state.winner !== 0 || endModal || !playRoomId) return;
-      if (state.turn !== myColor || state.pendingPass != null) return;
+      if (state.turn !== myColor) return;
       if (state.board[r][c] !== 0) return;
       if (isOmokDoubleThreeForbiddenMove(state.board, r, c, myColor)) {
         setForbiddenMsg('쌍삼은 금지입니다');
@@ -232,8 +232,10 @@ export function OmokPage() {
       return myColor === 2 ? '승리했습니다!' : '패배했습니다.';
     }
     if (state.turn !== myColor) return '상대의 차례입니다.';
-    if (state.pendingPass != null) return '돌을 두었습니다. 턴 넘기기를 눌러 주세요.';
-    return '내 차례 — 교차점에 돌을 두세요. (30초)';
+    if (state.pendingPass != null) {
+      return '확정 전입니다. 다른 교차점을 누르면 돌 위치가 옮겨지고, 같은 자리를 다시 누르면 취소됩니다. 턴 넘기기 시 상대 화면에 반영됩니다.';
+    }
+    return '내 차례 — 교차점을 눌러 착점을 정한 뒤 턴 넘기기로 확정하세요. (30초)';
   }, [state, myColor]);
 
   const hostLayout = matchRole !== 'guest';
@@ -336,16 +338,22 @@ export function OmokPage() {
   const cells = useMemo(() => {
     if (!state) return null;
     const { board } = state;
+    const stoneAt = (r: number, c: number): OmokStone => {
+      const b = board[r][c] as OmokStone;
+      if (b !== 0) return b;
+      const p = state.pendingPass;
+      if (p != null && p.r === r && p.c === c && state.turn === myColor) {
+        return myColor as OmokStone;
+      }
+      return 0;
+    };
     const out: React.ReactNode[] = [];
     for (let r = 0; r < OMOK_SIZE; r++) {
       for (let c = 0; c < OMOK_SIZE; c++) {
-        const v = board[r][c] as OmokStone;
+        const raw = board[r][c] as OmokStone;
+        const shown = stoneAt(r, c);
         const canTryPlace =
-          !endModal &&
-          state.winner === 0 &&
-          v === 0 &&
-          state.pendingPass == null &&
-          state.turn === myColor;
+          !endModal && state.winner === 0 && raw === 0 && state.turn === myColor;
         const doubleThree = canTryPlace && isOmokDoubleThreeForbiddenMove(board, r, c, myColor);
         const playableHighlight = canTryPlace && !doubleThree;
         out.push(
@@ -365,8 +373,8 @@ export function OmokPage() {
             disabled={!canTryPlace}
             aria-label={`${r + 1}행 ${c + 1}열`}
           >
-            {v === 1 && <span className="omok-stone omok-stone--black" />}
-            {v === 2 && <span className="omok-stone omok-stone--white" />}
+            {shown === 1 && <span className="omok-stone omok-stone--black" />}
+            {shown === 2 && <span className="omok-stone omok-stone--white" />}
           </button>
         );
       }
