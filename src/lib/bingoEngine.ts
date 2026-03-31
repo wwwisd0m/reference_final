@@ -553,14 +553,15 @@ export function applyBingoSelect(
   s = resolveBingoPlayTimeouts(s);
   if (s.phase !== 'play' || s.winner !== 0) return null;
   if (s.turn !== asColor) return null;
-  if (s.pendingWord != null) return null;
   if (!isWordInSubjectPool(s.subjectId, word)) return null;
   const idx = wordToCanonicalIndex(s.subjectId, word);
   if (idx < 0) return null;
   const nextIdx = s.markedByIndex.map((v) => normalizeMarkCell(v));
   if (nextIdx[idx] !== 0) return null;
-  nextIdx[idx] = asColor;
-  return resolveWinAfterMark(s, nextIdx);
+  if (s.pendingWord === word) {
+    return { ...s, pendingWord: null, updatedAt: Date.now() };
+  }
+  return { ...s, pendingWord: word, updatedAt: Date.now() };
 }
 
 export function applyBingoPass(state: BingoGameState, asColor: 1 | 2): BingoGameState | null {

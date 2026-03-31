@@ -102,7 +102,8 @@ const BingoPlayCell = React.memo(function BingoPlayCell({
   let cls = 'bingo-cell';
   if (mark === 1) cls += ' bingo-cell--p1';
   if (mark === 2) cls += ' bingo-cell--p2';
-  if (pendingHere) cls += ' bingo-cell--focus';
+  if (pendingHere && mark === 0) cls += ' bingo-cell--pending-pick';
+  else if (pendingHere) cls += ' bingo-cell--focus';
   if (clickable) cls += ' bingo-cell--playable';
   return (
     <button type="button" className={cls} disabled={!clickable} onClick={() => onPick(ri, ci)}>
@@ -649,8 +650,11 @@ export function BingoPage() {
       return '셀을 밀어 가로 줄·세로 줄 안에서 순서를 바꾼 뒤 완료를 누르세요. (호스트·게스트 모두 완료 시 시작)';
     }
     if (bingo.turn !== myColor) return '잠시만요 — 상대 차례입니다.';
-    if (bingo.pendingWord != null) return '이전 대기 중인 선택이 있습니다. 턴 넘기기로 확정하세요.';
-    return '내 차례 — 빈 칸을 눌러 표시하거나 턴 넘기기로 건너뛰세요. (15초)';
+    if (bingo.pendingWord != null && bingo.turn === myColor) {
+      return '선택한 칸은 턴 넘기기로 확정됩니다. 같은 칸을 다시 누르면 선택을 취소할 수 있습니다.';
+    }
+    if (bingo.pendingWord != null) return '상대가 선택을 확정하는 중입니다.';
+    return '내 차례 — 칸을 한 번 눌러 선택한 뒤 턴 넘기기로 확정하세요. 선택 없이 턴 넘기기는 건너뛰기입니다. (15초)';
   }, [bingo, myColor, setupWaitingPeer]);
 
   if (!online) {
@@ -683,7 +687,7 @@ export function BingoPage() {
   return (
     <>
       <GameLayout docTitle="reference-final" onBack={goHome}>
-        <div className="bingo-play">
+        <div className={'bingo-play' + (bingo.phase === 'play' ? ' bingo-play--g2-play' : '')}>
           {bingo.phase === 'setup' ? (
             <>
               <p className="bingo-subject">{subjectLine}</p>
@@ -749,8 +753,8 @@ export function BingoPage() {
 
               <p className="bingo-subject">{subjectLine}</p>
               <p className="bingo-my-board-caption">내 판</p>
-              <div className="bingo-board-wrap">
-                <div className="bingo-grid-5" role="grid">
+              <div className="bingo-board-wrap bingo-board-wrap--play-g2">
+                <div className="bingo-grid-5 bingo-grid-5--play-g2" role="grid">
                   {playCells?.flat()}
                 </div>
               </div>
