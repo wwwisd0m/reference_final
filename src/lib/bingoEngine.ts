@@ -230,15 +230,10 @@ export function unflattenLabelsFlat(flat: string[]): string[][] {
 
 /** 같은 행에서 `fromCol` 단어를 빼 `toCol`에 넣어 가로로 한 칸씩 밀림 (빈 칸 없음) */
 export function slideRowLabels(labels: string[][], rowIdx: number, fromCol: number, toCol: number): string[][] {
-  if (
-    rowIdx < 0 ||
-    rowIdx >= BINGO_SIZE ||
-    fromCol < 0 ||
-    fromCol >= BINGO_SIZE ||
-    toCol < 0 ||
-    toCol >= BINGO_SIZE ||
-    fromCol === toCol
-  ) {
+  rowIdx = Math.min(BINGO_SIZE - 1, Math.max(0, rowIdx));
+  fromCol = Math.min(BINGO_SIZE - 1, Math.max(0, fromCol));
+  toCol = Math.min(BINGO_SIZE - 1, Math.max(0, toCol));
+  if (fromCol === toCol) {
     return labels;
   }
   const next = labels.map((r) => [...r]);
@@ -250,15 +245,10 @@ export function slideRowLabels(labels: string[][], rowIdx: number, fromCol: numb
 
 /** 같은 열에서 `fromRow` 단어를 빼 `toRow`에 넣어 세로로 한 칸씩 밀림 */
 export function slideColLabels(labels: string[][], colIdx: number, fromRow: number, toRow: number): string[][] {
-  if (
-    colIdx < 0 ||
-    colIdx >= BINGO_SIZE ||
-    fromRow < 0 ||
-    fromRow >= BINGO_SIZE ||
-    toRow < 0 ||
-    toRow >= BINGO_SIZE ||
-    fromRow === toRow
-  ) {
+  colIdx = Math.min(BINGO_SIZE - 1, Math.max(0, colIdx));
+  fromRow = Math.min(BINGO_SIZE - 1, Math.max(0, fromRow));
+  toRow = Math.min(BINGO_SIZE - 1, Math.max(0, toRow));
+  if (fromRow === toRow) {
     return labels;
   }
   const next = labels.map((r) => [...r]);

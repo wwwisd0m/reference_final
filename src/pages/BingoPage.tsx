@@ -44,43 +44,22 @@ import { playPageExitPathIfInvalid, syncPlaySessionFromUrl } from '../lib/playSe
 import './game-play.css';
 
 const BINGO_SLIDE_AXIS_LOCK_PX = 12;
-const BINGO_SLIDE_FLIP_MS = 180;
+/** FLIP 슬라이드 애니메이션 길이 — ease-out은 useLayoutEffect에서 지정 */
+const BINGO_SLIDE_FLIP_MS = 280;
 
-/** 셀 DOM의 data-setup-r/c 우선(테두리·서브픽셀로 외곽 칸이 밀리는 문제 방지), 실패 시 안쪽 사각형 비율 폴백 */
-function hitBingoSetupFromPoint(
-  gridEl: HTMLElement,
-  clientX: number,
-  clientY: number
-): { r: number; c: number } | null {
-  const readHit = (el: HTMLElement | null): { r: number; c: number } | null => {
-    if (!el) return null;
-    const rs = el.dataset.setupR;
-    const cs = el.dataset.setupC;
-    if (rs == null || cs == null) return null;
-    const r = parseInt(rs, 10);
-    const c = parseInt(cs, 10);
-    if (Number.isNaN(r) || Number.isNaN(c)) return null;
-    if (r < 0 || r >= BINGO_SIZE || c < 0 || c >= BINGO_SIZE) return null;
-    return { r, c };
-  };
+function clampBingoIndex(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(BINGO_SIZE - 1, Math.max(0, Math.floor(n)));
+}
 
-  try {
-    const stack = document.elementsFromPoint(clientX, clientY);
-    for (const node of stack) {
-      if (!(node instanceof HTMLElement)) continue;
-      if (!gridEl.contains(node)) continue;
-      let cur: HTMLElement | null = node;
-      while (cur && gridEl.contains(cur)) {
-        const h = readHit(cur);
-        if (h) return h;
-        if (cur === gridEl) break;
-        cur = cur.parentElement;
-      }
-    }
-  } catch {
-    /* elementsFromPoint unavailable */
-  }
-
+/**
+ * 그리드 안쪽 사각형 + 포인터를 경계로 클램프해 항상 유효한 (r,c)만 반환.
+ * FLIP 중 셀에 transform이 걸린 뒤에는 elementsFromPoint가 논리 격자와 어긋나 외곽에서 반대로 튕기는 현상이 나므로 지오메트리만 사용.
+ */
+function hitBingoSetupFromPoint(gridEl: HTMLElement, clientX: number, clientY: number): {
+  r: number;
+  c: number;
+} {
   const rect = gridEl.getBoundingClientRect();
   const cs = getComputedStyle(gridEl);
   const bl = parseFloat(cs.borderLeftWidth) || 0;
@@ -91,19 +70,15 @@ function hitBingoSetupFromPoint(
   const top = rect.top + bt;
   const w = rect.width - bl - br;
   const h = rect.height - bt - bb;
-  if (w <= 0 || h <= 0) return null;
-  const x = clientX - left;
-  const y = clientY - top;
-  if (x < 0 || x > w || y < 0 || y > h) return null;
-  const eps = 1e-4;
-  const c = Math.min(
-    BINGO_SIZE - 1,
-    Math.max(0, Math.floor(((x - eps) / w) * BINGO_SIZE))
-  );
-  const r = Math.min(
-    BINGO_SIZE - 1,
-    Math.max(0, Math.floor(((y - eps) / h) * BINGO_SIZE))
-  );
+  if (w <= 0 || h <= 0) {
+    return { r: 0, c: 0 };
+  }
+  const xClamped = Math.min(left + w, Math.max(left, clientX));
+  const yClamped = Math.min(top + h, Math.max(top, clientY));
+  const u = (xClamped - left) / w;
+  const v = (yClamped - top) / h;
+  const c = clampBingoIndex(Math.floor(u * BINGO_SIZE - 1e-6));
+  const r = clampBingoIndex(Math.floor(v * BINGO_SIZE - 1e-6));
   return { r, c };
 }
 
@@ -351,9 +326,13 @@ export function BingoPage() {
     if (!bingo || bingo.phase !== 'setup') return null;
     const s = setupDrag;
     if (!s?.axis) return bingo.labels;
-    if (s.fromR === s.hoverR && s.fromC === s.hoverC) return bingo.labels;
-    if (s.axis === 'row') return slideRowLabels(bingo.labels, s.fromR, s.fromC, s.hoverC);
-    return slideColLabels(bingo.labels, s.fromC, s.fromR, s.hoverR);
+    const fromR = clampBingoIndex(s.fromR);
+    const fromC = clampBingoIndex(s.fromC);
+    const hoverR = clampBingoIndex(s.hoverR);
+    const hoverC = clampBingoIndex(s.hoverC);
+    if (fromR === hoverR && fromC === hoverC) return bingo.labels;
+    if (s.axis === 'row') return slideRowLabels(bingo.labels, fromR, fromC, hoverC);
+    return slideColLabels(bingo.labels, fromC, fromR, hoverR);
   }, [bingo, setupDrag]);
 
   const setupPreviewSig = useMemo(
@@ -390,13 +369,13 @@ export function BingoPage() {
             el.style.transition = 'none';
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                el.style.transition = `transform ${flipMs}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+                el.style.transition = `transform ${flipMs}ms ease-out`;
                 el.style.transform = '';
               });
             });
             window.setTimeout(() => {
               el.style.transition = '';
-            }, flipMs + 40);
+            }, flipMs + 60);
           }
         }
       }
@@ -418,15 +397,19 @@ export function BingoPage() {
       }
     }
     const hit = hitBingoSetupFromPoint(grid, e.clientX, e.clientY);
-    let hoverR = sess.hoverR;
-    let hoverC = sess.hoverC;
+    const fromR = clampBingoIndex(sess.fromR);
+    const fromC = clampBingoIndex(sess.fromC);
+    let hoverR = clampBingoIndex(sess.hoverR);
+    let hoverC = clampBingoIndex(sess.hoverC);
     if (axis === 'row') {
-      hoverR = sess.fromR;
-      hoverC = hit ? hit.c : sess.hoverC;
+      hoverR = fromR;
+      hoverC = hit.c;
     } else if (axis === 'col') {
-      hoverR = hit ? hit.r : sess.hoverR;
-      hoverC = sess.fromC;
+      hoverR = hit.r;
+      hoverC = fromC;
     }
+    hoverR = clampBingoIndex(hoverR);
+    hoverC = clampBingoIndex(hoverC);
     if (axis === sess.axis && hoverR === sess.hoverR && hoverC === sess.hoverC) return;
     const next: SetupPointerSlide = { ...sess, axis: axis ?? sess.axis, hoverR, hoverC };
     setupDragRef.current = next;
@@ -447,11 +430,15 @@ export function BingoPage() {
 
       if (aborted || !bingo || bingo.phase !== 'setup' || mySetupLocked || !playRoomId) return;
       if (!sess.axis) return;
-      if (sess.fromR === sess.hoverR && sess.fromC === sess.hoverC) return;
+      const fromR = clampBingoIndex(sess.fromR);
+      const fromC = clampBingoIndex(sess.fromC);
+      const hoverR = clampBingoIndex(sess.hoverR);
+      const hoverC = clampBingoIndex(sess.hoverC);
+      if (fromR === hoverR && fromC === hoverC) return;
       const nextG =
         sess.axis === 'row'
-          ? slideRowLabels(bingo.labels, sess.fromR, sess.fromC, sess.hoverC)
-          : slideColLabels(bingo.labels, sess.fromC, sess.fromR, sess.hoverR);
+          ? slideRowLabels(bingo.labels, fromR, fromC, hoverC)
+          : slideColLabels(bingo.labels, fromC, fromR, hoverR);
       void tryBingoSetupGrid(playRoomId, nextG).then((ok) => {
         if (ok && playRoomId) setSyncBingo(getBingoGame(playRoomId));
       });
@@ -466,15 +453,17 @@ export function BingoPage() {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
+      const fr = clampBingoIndex(fromR);
+      const fc = clampBingoIndex(fromC);
       const s: SetupPointerSlide = {
         word: label,
-        fromR,
-        fromC,
+        fromR: fr,
+        fromC: fc,
         startX: e.clientX,
         startY: e.clientY,
         axis: null,
-        hoverR: fromR,
-        hoverC: fromC,
+        hoverR: fr,
+        hoverC: fc,
         pointerId: e.pointerId,
       };
       setupDragRef.current = s;

@@ -517,6 +517,7 @@ html[data-theme='excel'] .bingo-play--g2-play .bingo-status-hint {
 }
 
 /* A_G2_bingo_02 / 배치: 행·열 슬라이드 + FLIP (터치: 스크롤 충돌 방지) */
+/* FLIP transform 지속시간·이징은 BingoPage `BINGO_SLIDE_FLIP_MS` + ease-out 과 동기 */
 .bingo-grid-5--setup-slide {
   grid-template-rows: repeat(5, 1fr);
   align-items: stretch;
