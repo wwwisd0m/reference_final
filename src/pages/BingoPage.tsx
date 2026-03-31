@@ -33,6 +33,36 @@ function swapInGrid(grid: string[][], fr: number, fc: number, tr: number, tc: nu
   return g;
 }
 
+/** 플레이 칸은 항상 button으로 두어 턴 전환 시 div↔button 전환으로 레이아웃이 튀는 현상 방지 */
+const BingoPlayCell = React.memo(function BingoPlayCell({
+  ri,
+  ci,
+  label,
+  mark,
+  pendingHere,
+  clickable,
+  onPick,
+}: {
+  ri: number;
+  ci: number;
+  label: string;
+  mark: 0 | 1 | 2;
+  pendingHere: boolean;
+  clickable: boolean;
+  onPick: (r: number, c: number) => void;
+}) {
+  let cls = 'bingo-cell';
+  if (mark === 1) cls += ' bingo-cell--p1';
+  if (mark === 2) cls += ' bingo-cell--p2';
+  if (pendingHere) cls += ' bingo-cell--focus';
+  if (clickable) cls += ' bingo-cell--playable';
+  return (
+    <button type="button" className={cls} disabled={!clickable} onClick={() => onPick(ri, ci)}>
+      <span className="bingo-cell__label">{label}</span>
+    </button>
+  );
+});
+
 export function BingoPage() {
   syncPlaySessionFromUrl();
   const navigate = useNavigate();
@@ -186,7 +216,6 @@ export function BingoPage() {
     (r: number, c: number) => {
       if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0 || !playRoomId) return;
       if (bingo.turn !== myColor) return;
-      if (bingo.pendingWord != null) return;
       const word = bingo.labels[r]?.[c];
       if (typeof word !== 'string') return;
       const flatM = derivedMarkedGrid(bingo.labels, bingo.subjectId, bingo.markedByIndex);
@@ -208,8 +237,7 @@ export function BingoPage() {
 
   const canPassTurn = useMemo(() => {
     if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0) return false;
-    if (bingo.turn !== myColor) return false;
-    return bingo.pendingWord != null;
+    return bingo.turn === myColor;
   }, [bingo, myColor]);
 
   const setupWaitingPeer = useMemo(() => {
@@ -264,26 +292,20 @@ export function BingoPage() {
     return labels.map((row, ri) =>
       row.map((label, ci) => {
         const m = marked[ri][ci];
-        const pendingHere = pendingWord === label;
+        const pendingHere = pendingWord != null && pendingWord === label;
         const isMyTurn = bingo.turn === myColor;
-        const clickable = bingo.winner === 0 && isMyTurn && m === 0 && pendingWord == null;
-        let cls = 'bingo-cell';
-        if (m === 1) cls += ' bingo-cell--p1';
-        if (m === 2) cls += ' bingo-cell--p2';
-        if (pendingHere) cls += ' bingo-cell--focus';
-        if (clickable) cls += ' bingo-cell--playable';
-        const inner = <span className="bingo-cell__label">{label}</span>;
-        if (clickable) {
-          return (
-            <button key={`p-${ri}-${ci}`} type="button" className={cls} onClick={() => onSelectCell(ri, ci)}>
-              {inner}
-            </button>
-          );
-        }
+        const clickable = bingo.winner === 0 && isMyTurn && m === 0;
         return (
-          <div key={`p-${ri}-${ci}`} className={cls} role="gridcell">
-            {inner}
-          </div>
+          <BingoPlayCell
+            key={`p-${ri}-${ci}`}
+            ri={ri}
+            ci={ci}
+            label={label}
+            mark={m}
+            pendingHere={pendingHere}
+            clickable={clickable}
+            onPick={onSelectCell}
+          />
         );
       })
     );
@@ -299,8 +321,8 @@ export function BingoPage() {
       return '드래그하여 순서를 바꾼 뒤 완료를 누르세요. (호스트·게스트 모두 완료 시 시작)';
     }
     if (bingo.turn !== myColor) return '잠시만요 — 상대 차례입니다.';
-    if (bingo.pendingWord != null) return '선택한 칸을 턴 넘기기로 확정하세요.';
-    return '내 차례 — 칸을 눌러 표시하세요. (15초)';
+    if (bingo.pendingWord != null) return '이전 대기 중인 선택이 있습니다. 턴 넘기기로 확정하세요.';
+    return '내 차례 — 빈 칸을 눌러 표시하거나 턴 넘기기로 건너뛰세요. (15초)';
   }, [bingo, myColor, setupWaitingPeer]);
 
   const onBingoRematch = useCallback(() => {
@@ -436,7 +458,11 @@ export function BingoPage() {
                   disabled={!canPassTurn}
                   onClick={onPassTurn}
                 >
-                  {bingo.turn !== myColor && bingo.winner === 0 ? '잠시만요' : '턴 넘기기'}
+                  {bingo.turn !== myColor && bingo.winner === 0
+                    ? '잠시만요'
+                    : bingo.pendingWord != null
+                      ? '확정 (턴 넘기기)'
+                      : '턴 넘기기'}
                 </button>
               </div>
             </>

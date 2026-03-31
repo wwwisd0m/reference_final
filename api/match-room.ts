@@ -406,6 +406,23 @@ function coerceRedisBool(v: unknown): boolean {
   return v === true || v === 1 || v === '1';
 }
 
+function normalizeMarkCell(v: unknown): 0 | 1 | 2 {
+  if (v === 1 || v === '1') return 1;
+  if (v === 2 || v === '2') return 2;
+  return 0;
+}
+
+function coerceBingoWinner(w: unknown): BingoWinner {
+  if (w === 'draw') return 'draw';
+  if (w === 2 || w === '2') return 2;
+  if (w === 1 || w === '1') return 1;
+  return 0;
+}
+
+function coerceBingoTurn(t: unknown): 1 | 2 {
+  return t === 2 || t === '2' ? 2 : 1;
+}
+
 function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -417,15 +434,9 @@ function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
       ? (o.labels as string[][])
       : null;
 
-  function normalizeMarkVal(v: unknown): 0 | 1 | 2 {
-    if (v === 1 || v === '1') return 1;
-    if (v === 2 || v === '2') return 2;
-    return 0;
-  }
-
   let markedByIndex = o.markedByIndex as unknown[] | undefined;
   if (Array.isArray(markedByIndex) && markedByIndex.length === BINGO_CELL_COUNT) {
-    markedByIndex = markedByIndex.map((cell) => normalizeMarkVal(cell)) as (0 | 1 | 2)[];
+    markedByIndex = markedByIndex.map((cell) => normalizeMarkCell(cell)) as (0 | 1 | 2)[];
   } else {
     markedByIndex = emptyMarkedByIndex();
     const legacyMarked = o.marked as (0 | 1 | 2)[][] | undefined;
@@ -435,7 +446,7 @@ function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
         const row = labels[r];
         if (!row || row.length !== BINGO_SIZE) continue;
         for (let c = 0; c < BINGO_SIZE; c++) {
-          const v = normalizeMarkVal(legacyMarked[r]?.[c]);
+          const v = normalizeMarkCell(legacyMarked[r]?.[c]);
           if (v === 0) continue;
           const idx = wordToCanonicalIndex(subjectId, row[c] ?? '');
           if (idx >= 0) markedByIndex[idx] = v;
@@ -465,11 +476,11 @@ function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
     setupDeadline: Number(o.setupDeadline) || Date.now() + BINGO_SETUP_MS,
     hostReady: coerceRedisBool(o.hostReady),
     guestReady: coerceRedisBool(o.guestReady),
-    turn: o.turn === 2 ? 2 : 1,
+    turn: coerceBingoTurn(o.turn),
     markedByIndex,
     pendingWord,
     turnDeadline: Number(o.turnDeadline) || Date.now() + BINGO_PLAY_TURN_MS,
-    winner: (o.winner === 'draw' ? 'draw' : o.winner === 2 ? 2 : o.winner === 1 ? 1 : 0) as BingoWinner,
+    winner: coerceBingoWinner(o.winner),
     hostLayoutFlat: Array.isArray(o.hostLayoutFlat) ? (o.hostLayoutFlat as string[]) : null,
     guestLayoutFlat: Array.isArray(o.guestLayoutFlat) ? (o.guestLayoutFlat as string[]) : null,
     emptyPassStreak: typeof o.emptyPassStreak === 'number' ? o.emptyPassStreak : 0,
@@ -540,13 +551,13 @@ function checkLayoutLineWin(
     line.every(([r, c]) => {
       const w = flat25[flatCellIndex(r, c)];
       const idx = wordToCanonicalIndex(subjectId, w);
-      return idx >= 0 && markedByIndex[idx] === color;
+      return idx >= 0 && normalizeMarkCell(markedByIndex[idx]) === color;
     })
   );
 }
 
 function isMarkedIndexFull(markedByIndex: (0 | 1 | 2)[]): boolean {
-  return markedByIndex.every((v) => v !== 0);
+  return markedByIndex.every((v) => normalizeMarkCell(v) !== 0);
 }
 
 function advancePlayTurn(state: BingoGameState): BingoGameState {
@@ -580,18 +591,19 @@ function resolveWinAfterMark(
   state: BingoGameState,
   markedByIndex: (0 | 1 | 2)[]
 ): BingoGameState {
+  const marks = markedByIndex.map((v) => normalizeMarkCell(v));
   const { subjectId, hostLayoutFlat, guestLayoutFlat } = state;
   const p1 =
     hostLayoutFlat && validateLayoutFlatForSubject(hostLayoutFlat, subjectId)
-      ? checkLayoutLineWin(hostLayoutFlat, markedByIndex, subjectId, 1)
+      ? checkLayoutLineWin(hostLayoutFlat, marks, subjectId, 1)
       : false;
   const p2 =
     guestLayoutFlat && validateLayoutFlatForSubject(guestLayoutFlat, subjectId)
-      ? checkLayoutLineWin(guestLayoutFlat, markedByIndex, subjectId, 2)
+      ? checkLayoutLineWin(guestLayoutFlat, marks, subjectId, 2)
       : false;
   const base: BingoGameState = {
     ...state,
-    markedByIndex,
+    markedByIndex: marks,
     pendingWord: null,
     updatedAt: Date.now(),
   };
@@ -604,7 +616,7 @@ function resolveWinAfterMark(
   if (p2) {
     return { ...base, winner: 2, endReason: 'line' };
   }
-  if (isMarkedIndexFull(markedByIndex)) {
+  if (isMarkedIndexFull(marks)) {
     return { ...base, winner: 'draw', endReason: 'full' };
   }
   return advancePlayTurn({ ...base, emptyPassStreak: 0 });
@@ -615,8 +627,8 @@ function commitPendingMark(state: BingoGameState): BingoGameState | null {
   const color = state.turn;
   const idx = wordToCanonicalIndex(state.subjectId, state.pendingWord);
   if (idx < 0) return null;
-  if (state.markedByIndex[idx] !== 0) return null;
-  const nextIdx = [...state.markedByIndex];
+  const nextIdx = state.markedByIndex.map((v) => normalizeMarkCell(v));
+  if (nextIdx[idx] !== 0) return null;
   nextIdx[idx] = color;
   return resolveWinAfterMark(state, nextIdx);
 }
@@ -725,8 +737,11 @@ function applyBingoSelect(state: BingoGameState, word: string, asColor: 1 | 2): 
   if (s.pendingWord != null) return null;
   if (!isWordInSubjectPool(s.subjectId, word)) return null;
   const idx = wordToCanonicalIndex(s.subjectId, word);
-  if (idx < 0 || s.markedByIndex[idx] !== 0) return null;
-  return { ...s, pendingWord: word, updatedAt: Date.now() };
+  if (idx < 0) return null;
+  const nextIdx = s.markedByIndex.map((v) => normalizeMarkCell(v));
+  if (nextIdx[idx] !== 0) return null;
+  nextIdx[idx] = asColor;
+  return resolveWinAfterMark(s, nextIdx);
 }
 
 function applyBingoPass(state: BingoGameState, asColor: 1 | 2): BingoGameState | null {
