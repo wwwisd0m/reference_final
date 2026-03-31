@@ -392,12 +392,28 @@ html[data-theme='excel'] .bingo-board-wrap--play-g2 {
 html[data-theme='excel'] .bingo-grid-5--play-g2.bingo-grid-5 {
   border: 1px solid #e0e0e0;
   background: #ffffff;
+  grid-template-rows: repeat(5, 1fr);
+  align-items: stretch;
+  justify-items: stretch;
 }
 
 html[data-theme='excel'] .bingo-grid-5--play-g2 .bingo-cell {
   border-color: #e0e0e0;
   background: #ffffff;
   color: #6d5d56;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05px;
+  line-height: 1.2;
+  min-height: 0;
+  min-width: 0;
+}
+
+html[data-theme='excel'] .bingo-grid-5--play-g2 button.bingo-cell {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05px;
+  line-height: 1.2;
 }
 
 html[data-theme='excel'] .bingo-grid-5--play-g2 .bingo-cell--p1 {
@@ -692,7 +708,8 @@ html[data-theme='excel'] .bingo-btn--commit:hover:not(:disabled) {
 button.bingo-cell {
   margin: 0;
   padding: 0;
-  font: inherit;
+  /* font: inherit 는 font-size까지 부모로 덮어써 플레이 칸이 셋업과 달라짐 — .bingo-cell 타이포 유지 */
+  font-family: inherit;
   text-align: center;
   width: 100%;
   height: 100%;

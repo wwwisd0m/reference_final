@@ -46,22 +46,63 @@ import './game-play.css';
 const BINGO_SLIDE_AXIS_LOCK_PX = 12;
 const BINGO_SLIDE_FLIP_MS = 180;
 
-function hitBingoCellFromPoint(
+/** 셀 DOM의 data-setup-r/c 우선(테두리·서브픽셀로 외곽 칸이 밀리는 문제 방지), 실패 시 안쪽 사각형 비율 폴백 */
+function hitBingoSetupFromPoint(
   gridEl: HTMLElement,
   clientX: number,
   clientY: number
 ): { r: number; c: number } | null {
-  const rect = gridEl.getBoundingClientRect();
-  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
-    return null;
+  const readHit = (el: HTMLElement | null): { r: number; c: number } | null => {
+    if (!el) return null;
+    const rs = el.dataset.setupR;
+    const cs = el.dataset.setupC;
+    if (rs == null || cs == null) return null;
+    const r = parseInt(rs, 10);
+    const c = parseInt(cs, 10);
+    if (Number.isNaN(r) || Number.isNaN(c)) return null;
+    if (r < 0 || r >= BINGO_SIZE || c < 0 || c >= BINGO_SIZE) return null;
+    return { r, c };
+  };
+
+  try {
+    const stack = document.elementsFromPoint(clientX, clientY);
+    for (const node of stack) {
+      if (!(node instanceof HTMLElement)) continue;
+      if (!gridEl.contains(node)) continue;
+      let cur: HTMLElement | null = node;
+      while (cur && gridEl.contains(cur)) {
+        const h = readHit(cur);
+        if (h) return h;
+        if (cur === gridEl) break;
+        cur = cur.parentElement;
+      }
+    }
+  } catch {
+    /* elementsFromPoint unavailable */
   }
+
+  const rect = gridEl.getBoundingClientRect();
+  const cs = getComputedStyle(gridEl);
+  const bl = parseFloat(cs.borderLeftWidth) || 0;
+  const br = parseFloat(cs.borderRightWidth) || 0;
+  const bt = parseFloat(cs.borderTopWidth) || 0;
+  const bb = parseFloat(cs.borderBottomWidth) || 0;
+  const left = rect.left + bl;
+  const top = rect.top + bt;
+  const w = rect.width - bl - br;
+  const h = rect.height - bt - bb;
+  if (w <= 0 || h <= 0) return null;
+  const x = clientX - left;
+  const y = clientY - top;
+  if (x < 0 || x > w || y < 0 || y > h) return null;
+  const eps = 1e-4;
   const c = Math.min(
     BINGO_SIZE - 1,
-    Math.max(0, Math.floor(((clientX - rect.left) / rect.width) * BINGO_SIZE))
+    Math.max(0, Math.floor(((x - eps) / w) * BINGO_SIZE))
   );
   const r = Math.min(
     BINGO_SIZE - 1,
-    Math.max(0, Math.floor(((clientY - rect.top) / rect.height) * BINGO_SIZE))
+    Math.max(0, Math.floor(((y - eps) / h) * BINGO_SIZE))
   );
   return { r, c };
 }
@@ -376,7 +417,7 @@ export function BingoPage() {
         axis = Math.abs(dx) >= Math.abs(dy) ? 'row' : 'col';
       }
     }
-    const hit = hitBingoCellFromPoint(grid, e.clientX, e.clientY);
+    const hit = hitBingoSetupFromPoint(grid, e.clientX, e.clientY);
     let hoverR = sess.hoverR;
     let hoverC = sess.hoverC;
     if (axis === 'row') {
@@ -589,6 +630,8 @@ export function BingoPage() {
               (draggingWord && s ? ' bingo-cell--drag-source' : '')
             }
             style={{ gridRow: ri + 1, gridColumn: ci + 1 }}
+            data-setup-r={ri}
+            data-setup-c={ci}
             onPointerDown={onSetupPointerDown(label, ri, ci)}
             onPointerMove={patchSetupPointerDrag}
             onPointerUp={(e) => finishSetupPointer(e, false)}
