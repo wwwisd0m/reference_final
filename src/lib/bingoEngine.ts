@@ -228,6 +228,19 @@ export function unflattenLabelsFlat(flat: string[]): string[][] {
   return out;
 }
 
+/** 행 우선 flat에서 `from`칸 항목을 빼 `to`칸 위치에 넣어 나머지가 한 칸씩 밀리도록 함 (배치 드래그용) */
+export function insertFlatReorder(flat: string[], from: number, to: number): string[] {
+  if (from === to || from < 0 || to < 0 || from >= flat.length || to >= flat.length) {
+    return flat;
+  }
+  const a = [...flat];
+  const [item] = a.splice(from, 1);
+  let ins = to;
+  if (from < to) ins = to - 1;
+  a.splice(ins, 0, item);
+  return a;
+}
+
 export function sameLabelMultiset(a: string[][], b: string[][]): boolean {
   const x = [...flattenLabels(a)].sort();
   const y = [...flattenLabels(b)].sort();

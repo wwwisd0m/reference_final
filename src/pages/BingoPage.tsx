@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { OmokEndModals } from '../components/game/OmokEndModals';
 import { GameLayout } from '../components/game/GameLayout';
@@ -8,6 +8,9 @@ import {
   BINGO_SUBJECT_LABEL,
   coerceBingoWinner,
   derivedMarkedGrid,
+  flattenLabels,
+  insertFlatReorder,
+  unflattenLabelsFlat,
   type BingoGameState,
 } from '../lib/bingoEngine';
 import {
@@ -41,14 +44,6 @@ import './game-play.css';
 
 type Color = 1 | 2;
 type EndModal = 'runway' | 'win' | 'lose' | 'draw' | null;
-
-function swapInGrid(grid: string[][], fr: number, fc: number, tr: number, tc: number): string[][] {
-  const g = grid.map((row) => [...row]);
-  const t = g[fr][fc];
-  g[fr][fc] = g[tr][tc];
-  g[tr][tc] = t;
-  return g;
-}
 
 /** 플레이 칸은 항상 button으로 두어 턴 전환 시 div↔button 전환으로 레이아웃이 튀는 현상 방지 */
 const BingoPlayCell = React.memo(function BingoPlayCell({
@@ -91,7 +86,9 @@ export function BingoPage() {
 
   const [syncBingo, setSyncBingo] = useState<BingoGameState | null>(null);
   const [playClock, setPlayClock] = useState(0);
-  const [dragFrom, setDragFrom] = useState<{ r: number; c: number } | null>(null);
+  /** 셋업: 드래그 중인 단어(행 우선 재배치 미리보기) */
+  const [dragSourceWord, setDragSourceWord] = useState<string | null>(null);
+  const [dragHover, setDragHover] = useState<{ r: number; c: number } | null>(null);
   const [endModal, setEndModal] = useState<EndModal>(null);
   const [rematch, setRematch] = useState(() => (playRoomId ? getRematch(playRoomId) : null));
   const [abandonSnap, setAbandonSnap] = useState(() => (playRoomId ? getAbandon(playRoomId) : null));
@@ -271,40 +268,112 @@ export function BingoPage() {
     return matchRole === 'guest' ? bingo.guestReady === true : bingo.hostReady === true;
   }, [bingo, matchRole]);
 
-  const onDragStartSetup = useCallback((r: number, c: number) => (e: React.DragEvent) => {
-    if (!bingo || bingo.phase !== 'setup' || mySetupLocked) return;
-    e.dataTransfer.setData('application/bingo-rc', JSON.stringify({ r, c }));
-    e.dataTransfer.effectAllowed = 'move';
-    setDragFrom({ r, c });
-  }, [bingo, mySetupLocked]);
+  const setupPreviewLabels = useMemo((): string[][] | null => {
+    if (!bingo || bingo.phase !== 'setup') return null;
+    if (!dragSourceWord) return bingo.labels;
+    const flat = flattenLabels(bingo.labels);
+    const fromIdx = flat.indexOf(dragSourceWord);
+    if (fromIdx < 0) return bingo.labels;
+    if (!dragHover) return bingo.labels;
+    const toIdx = dragHover.r * 5 + dragHover.c;
+    if (fromIdx === toIdx) return bingo.labels;
+    return unflattenLabelsFlat(insertFlatReorder(flat, fromIdx, toIdx));
+  }, [bingo, dragSourceWord, dragHover]);
 
-  const onDragEndSetup = useCallback(() => setDragFrom(null), []);
+  const setupPreviewSig = useMemo(
+    () => (setupPreviewLabels ? flattenLabels(setupPreviewLabels).join('|') : ''),
+    [setupPreviewLabels]
+  );
 
-  const onDragOverSetup = useCallback((e: React.DragEvent) => {
+  const wordFlipRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const lastFlipRects = useRef<Map<string, DOMRect> | null>(null);
+
+  useLayoutEffect(() => {
+    if (!bingo || bingo.phase !== 'setup' || !dragSourceWord || !setupPreviewLabels) {
+      if (!dragSourceWord) lastFlipRects.current = null;
+      return;
+    }
+    const flat = flattenLabels(setupPreviewLabels);
+    const newRects = new Map<string, DOMRect>();
+    for (const w of flat) {
+      const el = wordFlipRefs.current.get(w);
+      if (el) newRects.set(w, el.getBoundingClientRect());
+    }
+    const prev = lastFlipRects.current;
+    if (prev && newRects.size > 0) {
+      for (const w of flat) {
+        const el = wordFlipRefs.current.get(w);
+        const o = prev.get(w);
+        const n = newRects.get(w);
+        if (el && o && n) {
+          const dx = o.left - n.left;
+          const dy = o.top - n.top;
+          if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+            el.style.transition = 'none';
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                el.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+                el.style.transform = '';
+              });
+            });
+            window.setTimeout(() => {
+              el.style.transition = '';
+            }, 280);
+          }
+        }
+      }
+    }
+    lastFlipRects.current = newRects;
+  }, [bingo?.phase, dragSourceWord, setupPreviewSig]);
+
+  const onDragStartSetup = useCallback(
+    (word: string) => (e: React.DragEvent) => {
+      if (!bingo || bingo.phase !== 'setup' || mySetupLocked) return;
+      e.dataTransfer.setData('application/bingo-word', word);
+      e.dataTransfer.effectAllowed = 'move';
+      setDragSourceWord(word);
+      setDragHover(null);
+    },
+    [bingo, mySetupLocked]
+  );
+
+  const onDragEndSetup = useCallback(() => {
+    setDragSourceWord(null);
+    setDragHover(null);
+  }, []);
+
+  const onDragOverGridSetup = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDragOverCellSetup = useCallback((tr: number, tc: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragHover((h) => (h?.r === tr && h?.c === tc ? h : { r: tr, c: tc }));
   }, []);
 
   const onDropSetup = useCallback(
     (tr: number, tc: number) => (e: React.DragEvent) => {
       e.preventDefault();
       if (!bingo || bingo.phase !== 'setup' || mySetupLocked || !playRoomId) return;
-      let fr: number;
-      let fc: number;
-      try {
-        const raw = e.dataTransfer.getData('application/bingo-rc');
-        const p = JSON.parse(raw) as { r: number; c: number };
-        fr = p.r;
-        fc = p.c;
-      } catch {
+      const word = e.dataTransfer.getData('application/bingo-word');
+      if (!word) return;
+      const flat = flattenLabels(bingo.labels);
+      const fromIdx = flat.indexOf(word);
+      const toIdx = tr * 5 + tc;
+      if (fromIdx < 0 || fromIdx === toIdx) {
+        setDragSourceWord(null);
+        setDragHover(null);
         return;
       }
-      if (fr === tr && fc === tc) return;
-      const nextG = swapInGrid(bingo.labels, fr, fc, tr, tc);
+      const nextG = unflattenLabelsFlat(insertFlatReorder(flat, fromIdx, toIdx));
       void tryBingoSetupGrid(playRoomId, nextG).then((ok) => {
         if (ok && playRoomId) setSyncBingo(getBingoGame(playRoomId));
       });
-      setDragFrom(null);
+      setDragSourceWord(null);
+      setDragHover(null);
     },
     [bingo, playRoomId, mySetupLocked]
   );
@@ -425,21 +494,29 @@ export function BingoPage() {
   }, [rematch, matchRole]);
 
   const setupCells = useMemo(() => {
-    if (!bingo || bingo.phase !== 'setup') return null;
-    const { labels } = bingo;
-    return labels.map((row, ri) =>
+    if (!bingo || bingo.phase !== 'setup' || !setupPreviewLabels) return null;
+    return setupPreviewLabels.map((row, ri) =>
       row.map((label, ci) => {
-        const dragging = dragFrom?.r === ri && dragFrom?.c === ci;
+        const dropHere = Boolean(dragSourceWord && dragHover?.r === ri && dragHover?.c === ci);
+        const draggingWord = dragSourceWord === label;
         return (
           <div
-            key={`s-${ri}-${ci}`}
+            key={label}
+            ref={(el) => {
+              wordFlipRefs.current.set(label, el);
+            }}
             role="button"
             tabIndex={0}
             draggable={!mySetupLocked}
-            className={'bingo-cell bingo-cell--setup' + (dragging ? ' bingo-cell--drag' : '')}
-            onDragStart={onDragStartSetup(ri, ci)}
+            className={
+              'bingo-cell bingo-cell--setup bingo-cell--setup-insert' +
+              (dropHere ? ' bingo-cell--drop-target' : '') +
+              (draggingWord && dragSourceWord ? ' bingo-cell--drag-source' : '')
+            }
+            style={{ gridRow: ri + 1, gridColumn: ci + 1 }}
+            onDragStart={onDragStartSetup(label)}
             onDragEnd={onDragEndSetup}
-            onDragOver={onDragOverSetup}
+            onDragOver={onDragOverCellSetup(ri, ci)}
             onDrop={onDropSetup(ri, ci)}
           >
             {label}
@@ -447,7 +524,17 @@ export function BingoPage() {
         );
       })
     );
-  }, [bingo, dragFrom, mySetupLocked, onDragStartSetup, onDragEndSetup, onDragOverSetup, onDropSetup]);
+  }, [
+    bingo,
+    setupPreviewLabels,
+    dragHover,
+    dragSourceWord,
+    mySetupLocked,
+    onDragStartSetup,
+    onDragEndSetup,
+    onDragOverCellSetup,
+    onDropSetup,
+  ]);
 
   const playCells = useMemo(() => {
     if (!bingo || bingo.phase !== 'play') return null;
@@ -463,7 +550,7 @@ export function BingoPage() {
         const clickable = inPlay && isMyTurn && m === 0;
         return (
           <BingoPlayCell
-            key={`p-${ri}-${ci}`}
+            key={`p-${label}`}
             ri={ri}
             ci={ci}
             label={label}
@@ -528,7 +615,11 @@ export function BingoPage() {
               <p className="bingo-subject">{subjectLine}</p>
               <p className="bingo-my-board-caption">내 배치</p>
               <div className="bingo-board-wrap">
-                <div className="bingo-grid-5" role="grid">
+                <div
+                  className="bingo-grid-5 bingo-grid-5--setup-insert"
+                  role="grid"
+                  onDragOver={onDragOverGridSetup}
+                >
                   {setupCells?.flat()}
                 </div>
               </div>

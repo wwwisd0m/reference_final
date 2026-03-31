@@ -414,6 +414,33 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   background: var(--bingo-cell-bg);
 }
 
+/* A_G2_bingo_02 / 배치: 명시적 grid 배치 + 삽입 미리보기 FLIP */
+.bingo-grid-5--setup-insert {
+  grid-template-rows: repeat(5, 1fr);
+  align-items: stretch;
+  justify-items: stretch;
+}
+
+.bingo-grid-5--setup-insert .bingo-cell--setup-insert {
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 0;
+}
+
+.bingo-cell--drop-target {
+  box-shadow: inset 0 0 0 2px var(--bingo-drop-ring, #a1d4b8);
+  z-index: 1;
+}
+
+.bingo-cell--drag-source {
+  opacity: 0.88;
+  z-index: 2;
+}
+
 .bingo-cell {
   border-right: 1px solid var(--bingo-cell-border);
   border-bottom: 1px solid var(--bingo-cell-border);
@@ -453,6 +480,17 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   outline: 2px solid var(--bingo-focus-ring);
   outline-offset: -2px;
   z-index: 1;
+}
+
+html[data-theme='excel'] .bingo-cell--playable:not(:disabled) {
+  outline: 2px solid var(--bingo-playable-ring, #a1d4b8);
+  outline-offset: -2px;
+  background: #ffffff;
+}
+
+html[data-theme='excel'] button.bingo-cell--playable:not(:disabled):hover {
+  filter: none;
+  background: #fafafa;
 }
 
 .bingo-cell--drag {
@@ -662,7 +700,7 @@ button.bingo-cell {
 }
 
 html[data-theme='excel'] {
-  /* A_G2_bingo_01 */
+  /* A_G2_bingo_01 배치 · A_G2_bingo_02 선택/플레이 */
   --bingo-subject: #5c5c5c;
   --bingo-sheet-bg: #fafafa;
   --bingo-sheet-border: #efefef;
@@ -670,11 +708,13 @@ html[data-theme='excel'] {
   --bingo-cell-border: #eeeeee;
   --bingo-cell-outer-border: #f4f4f4;
   --bingo-cell-text: #828282;
-  --bingo-p1-bg: #e8f4fc;
-  --bingo-p1-text: #4a90d9;
-  --bingo-p2-bg: #ffebee;
-  --bingo-p2-text: #e57373;
-  --bingo-focus-ring: #4caf50;
+  --bingo-p1-bg: #f3fbfd;
+  --bingo-p1-text: #5e98ab;
+  --bingo-p2-bg: #fff9f9;
+  --bingo-p2-text: #d98c8c;
+  --bingo-focus-ring: #a1d4b8;
+  --bingo-playable-ring: #a1d4b8;
+  --bingo-drop-ring: #a1d4b8;
   --bingo-drag-border: #a1d4b8;
   --bingo-drag-bg: #fdfdfd;
   --bingo-drag-text: #4c745e;
@@ -753,6 +793,6 @@ html[data-theme='excel'] .bingo-player-name {
 }
 
 html[data-theme='excel'] .bingo-player-color-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }

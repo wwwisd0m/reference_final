@@ -55,7 +55,8 @@ npm run preview  # dist 미리보기
 - `src/pages/` — 홈, 매칭(`MatchPage`), 오목·빙고 플레이. 매칭 완료 시 호스트·게스트 모두 `sessionStorage`에 `playRoomId`·`matchRole` 저장(빙고·오목 공통). 게스트 초대 링크는 `/match/:gameId?guest=1&room=<roomId>`; 플레이 URL만 공유할 때는 `/play/omok`·`/play/bingo`에 동일 쿼리를 붙이면 진입 시 세션이 보강됩니다. `/play/*`에서 세션이 비어 있으면 홈으로 보냄. 닉네임은 `getRoom(roomId)`의 `hostNickname` / `guestNickname`.  
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts`, `omokRules.ts` — 오목 상태·규칙(쌍삼 금수: 열린 3이 동시에 2개 이상이면 금지, 5목 완성 수는 예외). `api/match-room.ts` 오목 수 두기와 동일 로직 유지  
-- `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
+- `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태 (`bingoEngine`에 flat 삽입 재배치 `insertFlatReorder` 등)  
+- `src/pages/game-play.css`, `BingoPage.tsx` — 빙고 시트/그리드. Excel 테마(`data-theme='excel'`) 빙고는 Figma A_G2 계열 토큰으로 배치·선택/플레이 색을 맞춤(bingo_02 팔레트: 플레이어 톤·포커스/플레이 가능 링 `#a1d4b8` 등). 로컬 셋업에서 단어 드래그는 **삽입 재배치**(스왑 아님), 드롭될 칸 하이라이트와 나머지 칸 **FLIP** 밀림 애니메이션.  
 - `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: `bingoEnsure` 시 서버가 **동일한 초기 `labels` 5×5**를 Redis에 두고, 호스트·게스트가 같은 SUBJECT·같은 25단어에서 시작합니다. **완료** 시 `bingoReady`로 각자 `layoutFlat`을 저장(`hostLayoutFlat` / `guestLayoutFlat`). **`hostReady` / `guestReady`**는 JSON에서 `true`·`1`·`'1'`만 참으로 파싱해 `Boolean("false")===true` 류 오인을 막고, **`hostReady === true` 이고 `guestReady === true` 일 때만** `phase: play`로 전환합니다. 플레이 중 표시는 서버 `markedByIndex`·`pendingWord`(단어 문자열)를 폴링으로 받아 각자 판에 매핑합니다. **`bingo.turn` / 타임아웃**은 Redis·`getRoomResolved` 권한, 원격 클라는 폴링 값만 표시. 레거시 `bingoSubjectId`는 `normalize`에서 `subjectId`로 흡수.  
 
 ---
