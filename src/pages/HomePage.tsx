@@ -60,7 +60,7 @@ export function HomePage() {
         </div>
 
         <section className="title-card">
-          <p className="title-card__main">Reference.final</p>
+          <p className="title-card__main">reference-final</p>
           <p className="title-card__sub">by team.NugBug</p>
         </section>
 

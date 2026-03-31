@@ -7,20 +7,11 @@ import './home-modals.css';
 export function TopBarDoc() {
   const { theme } = useTheme();
   const [bugHover, setBugHover] = useState(false);
-  const [bugDismissed, setBugDismissed] = useState(false);
-
-  const showBug = bugHover && !bugDismissed;
 
   const bugWrapProps = {
     className: 'top-bar__bug-hover',
-    onMouseEnter: () => {
-      setBugHover(true);
-      setBugDismissed(false);
-    },
-    onMouseLeave: () => {
-      setBugHover(false);
-      setBugDismissed(false);
-    },
+    onMouseEnter: () => setBugHover(true),
+    onMouseLeave: () => setBugHover(false),
   };
 
   if (theme === 'adobe') {
@@ -28,15 +19,15 @@ export function TopBarDoc() {
       <header className="top-bar top-bar--adobe">
         <div className="top-bar__left">
           <img src={ASSETS_ADOBE.psLogo} alt="" width={20} height={20} className="top-bar__logo" />
-          <p className="top-bar__title top-bar__title--adobe">Untitled-1 @ 99.9% (GAME/18)</p>
+          <p className="top-bar__title top-bar__title--adobe">reference-final</p>
         </div>
         <div {...bugWrapProps}>
           <button id="bugrepot" type="button" className="top-bar__bug">
             벌레잡기
           </button>
-          {showBug && (
+          {bugHover && (
             <div className="frame-bug--floating">
-              <BugReportFrame onClose={() => setBugDismissed(true)} />
+              <BugReportFrame />
             </div>
           )}
         </div>
@@ -47,14 +38,14 @@ export function TopBarDoc() {
   if (theme === 'vscode') {
     return (
       <header className="top-bar top-bar--simple">
-        <p className="top-bar__title top-bar__title--simple">제목없음 - i want to go home 메모장</p>
+        <p className="top-bar__title top-bar__title--simple">reference-final</p>
         <div {...bugWrapProps}>
           <button id="bugrepot" type="button" className="top-bar__bug top-bar__bug--simple">
             벌레잡기
           </button>
-          {showBug && (
+          {bugHover && (
             <div className="frame-bug--floating">
-              <BugReportFrame onClose={() => setBugDismissed(true)} />
+              <BugReportFrame />
             </div>
           )}
         </div>
@@ -65,14 +56,14 @@ export function TopBarDoc() {
   return (
     <header className="top-bar top-bar--excel">
       <img src={ASSETS_EXCEL.excelLogo} alt="" width={22} height={22} className="top-bar__logo" />
-      <p className="top-bar__title top-bar__title--excel">{`통합 문서 1  - game`}</p>
+      <p className="top-bar__title top-bar__title--excel">reference-final</p>
       <div {...bugWrapProps}>
         <button id="bugrepot" type="button" className="top-bar__bug">
           벌레잡기
         </button>
-        {showBug && (
+        {bugHover && (
           <div className="frame-bug--floating">
-            <BugReportFrame onClose={() => setBugDismissed(true)} />
+            <BugReportFrame />
           </div>
         )}
       </div>

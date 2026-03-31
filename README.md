@@ -56,7 +56,7 @@ npm run preview  # dist 미리보기
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
 - `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
-- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: 호스트가 `ensure`로 빙고 방을 만들 때 방 객체의 **`subjectId`**(과일/꽃/동물)를 Redis에 **1회** 저장하고, GET 시 게스트도 동일 필드를 받습니다. 클라이언트는 `subjectId`로만 단어 풀을 구성합니다. 표시(`markedByIndex`)는 **단어(정렬 풀 인덱스)** 기준으로 동기화됩니다. **시작**은 호스트·게스트 **둘 다 완료** 후에만. 레거시 키 `bingoSubjectId`는 API `normalize`에서 `subjectId`로 흡수합니다.  
+- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: 호스트가 `ensure`로 빙고 방을 만들 때 방 객체의 **`subjectId`**(과일/꽃/동물)를 Redis에 **1회** 저장하고, GET 시 게스트도 동일 필드를 받습니다. 클라이언트는 `subjectId`로만 단어 풀을 구성합니다. 표시(`markedByIndex`)는 **단어(정렬 풀 인덱스)** 기준으로 동기화됩니다. **`bingo.turn` / 타임아웃**은 Redis와 GET `getRoomResolved`가 권한을 가지며, 원격 모드 클라이언트는 폴링으로 받은 값을 그대로 표시합니다(로컬 시각으로 `resolveBingoPlayTimeouts`를 다시 돌리지 않음). **시작**은 호스트·게스트 **둘 다 완료** 후에만. 레거시 키 `bingoSubjectId`는 API `normalize`에서 `subjectId`로 흡수합니다.  
 
 ---
 

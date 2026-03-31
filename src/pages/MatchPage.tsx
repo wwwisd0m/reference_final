@@ -78,7 +78,7 @@ function MatchInvalid({ fileName, onHome, reason }: InvalidProps) {
 
         <div className="match-host__body match-invalid">
           <div className="match-invalid__card">
-            <p className="match-invalid__title">Reference.final</p>
+            <p className="match-invalid__title">reference-final</p>
             <p className="match-invalid__sub">{sub}</p>
           </div>
           <div className="action-buttons action-buttons--center">

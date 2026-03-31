@@ -326,7 +326,7 @@ export function BingoPage() {
 
   if (online && syncBingo === null) {
     return (
-      <GameLayout docTitle="bingo.pdf" onBack={goHome}>
+      <GameLayout docTitle="reference-final" onBack={goHome}>
         <div className="bingo-play omok-loading-wrap">
           <ExcelMotionLoading size={31} label="빙고 로딩 중" />
           <p className="omok-loading">방 정보를 불러오는 중…</p>
@@ -341,7 +341,7 @@ export function BingoPage() {
 
   return (
     <>
-      <GameLayout docTitle="bingo.pdf" onBack={goHome}>
+      <GameLayout docTitle="reference-final" onBack={goHome}>
         <div className="bingo-play">
           {bingo.phase === 'setup' ? (
             <>

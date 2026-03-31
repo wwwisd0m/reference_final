@@ -99,15 +99,27 @@ function normalizeFromCache(raw: BingoGameState | null | undefined): BingoGameSt
   return coerceBingoGameState(raw) ?? raw;
 }
 
+/**
+ * 원격(Upstash): GET은 서버 `getRoomResolved`에서 이미 `resolveBingoAll`(플레이 타임아웃) 반영.
+ * 클라에서 `resolveBingoPlayTimeouts`를 다시 돌리면 기기 시각 차이로 `turn`이 서버와 어긋날 수 있음.
+ */
+function sanitizeRemoteBingoState(state: BingoGameState): BingoGameState {
+  if (state.winner !== 0 && state.winner !== 'draw') {
+    return { ...state, pendingWord: null };
+  }
+  return state;
+}
+
 export function getBingoGame(roomId: string): BingoGameState | null {
   const rawRoom = getRoom(roomId);
   const roomSubjectId = rawRoom?.subjectId;
   const b = normalizeFromCache(rawRoom?.bingo ?? null);
   if (!b) return null;
-  let resolved = resolveBingoAll(normalizeBingoState(b));
   if (isRemoteLobby()) {
-    return mergeRemoteLabels(roomId, roomSubjectId, resolved);
+    const merged = mergeRemoteLabels(roomId, roomSubjectId, b);
+    return sanitizeRemoteBingoState(merged);
   }
+  let resolved = resolveBingoAll(normalizeBingoState(b));
   if (isRoomBingoSubject(roomSubjectId) && resolved.subjectId !== roomSubjectId) {
     resolved = {
       ...resolved,

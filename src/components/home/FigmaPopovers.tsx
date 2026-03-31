@@ -1,4 +1,3 @@
-import { BUG_MODAL_CLOSE } from '../../theme/figmaAssets';
 import './home-modals.css';
 
 const CREDIT_ROWS: { role: string; name: string }[] = [
@@ -29,12 +28,9 @@ export function CreditFrame() {
 }
 
 /** 피그마 bugrepot 프레임 (0:1893) */
-export function BugReportFrame({ onClose }: { onClose: () => void }) {
+export function BugReportFrame() {
   return (
     <div className="frame-bug" role="dialog" aria-labelledby="bugrepot-title">
-      <button type="button" className="frame-bug__close" onClick={onClose} aria-label="닫기">
-        <img src={BUG_MODAL_CLOSE} alt="" width={14} height={14} />
-      </button>
       <p id="bugrepot-title" className="frame-bug__text">
         버그를 발견하셨나요?
         <br />

@@ -405,7 +405,7 @@ export function OmokPage() {
 
   if (online && state === null) {
     return (
-      <GameLayout docTitle="5mok.jpg" onBack={() => navigate('/')}>
+      <GameLayout docTitle="reference-final" onBack={() => navigate('/')}>
         <div className="omok-play omok-loading-wrap">
           <ExcelMotionLoading size={31} label="보드 로딩 중" />
           <p className="omok-loading">보드를 불러오는 중…</p>
@@ -416,7 +416,7 @@ export function OmokPage() {
 
   return (
     <>
-      <GameLayout docTitle="5mok.jpg" onBack={goHome}>
+      <GameLayout docTitle="reference-final" onBack={goHome}>
         <div className="omok-play">
           <div className={'omok-player-row' + (topRowActive ? ' omok-player-row--turn' : '')}>
             <div className="omok-player-row__left">
