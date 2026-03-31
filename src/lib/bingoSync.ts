@@ -11,6 +11,7 @@ import {
   BINGO_SIZE,
   buildShuffledGrid5,
   coerceBingoGameState,
+  coerceBingoWinner,
   flattenLabels,
   initialBingoState,
   normalizeBingoState,
@@ -156,10 +157,12 @@ function normalizeFromCache(raw: BingoGameState | null | undefined): BingoGameSt
  * 클라에서 `resolveBingoPlayTimeouts`를 다시 돌리면 기기 시각 차이로 `turn`이 서버와 어긋날 수 있음.
  */
 function sanitizeRemoteBingoState(state: BingoGameState): BingoGameState {
-  if (state.winner !== 0 && state.winner !== 'draw') {
-    return { ...state, pendingWord: null };
+  const winner = coerceBingoWinner(state.winner as unknown);
+  const base = winner !== state.winner ? { ...state, winner } : state;
+  if (base.winner !== 0 && base.winner !== 'draw') {
+    return { ...base, pendingWord: null };
   }
-  return state;
+  return base;
 }
 
 export function getBingoGame(roomId: string): BingoGameState | null {

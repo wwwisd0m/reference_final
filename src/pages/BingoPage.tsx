@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { OmokEndModals } from '../components/game/OmokEndModals';
 import { GameLayout } from '../components/game/GameLayout';
 import { ExcelMotionLoading } from '../components/excel/ExcelMotionLoading';
 import {
   BINGO_PLAY_TURN_MS,
   BINGO_SUBJECT_LABEL,
+  coerceBingoWinner,
   derivedMarkedGrid,
   type BingoGameState,
 } from '../lib/bingoEngine';
@@ -20,10 +22,25 @@ import {
 } from '../lib/bingoSync';
 import { isRemoteLobby } from '../lib/lobbyMode';
 import { getRoom } from '../lib/matchRoom';
+import {
+  clearAbandon,
+  getAbandon,
+  signalAbandon,
+  subscribeAbandon,
+} from '../lib/omokAbandon';
+import {
+  ensureRematchAfterGameEnd,
+  clearRematch,
+  getRematch,
+  pressRematchFinal,
+  subscribeRematch,
+  REMATCH_SECONDS,
+} from '../lib/omokRematch';
 import { playPageExitPathIfInvalid, syncPlaySessionFromUrl } from '../lib/playSession';
 import './game-play.css';
 
 type Color = 1 | 2;
+type EndModal = 'runway' | 'win' | 'lose' | 'draw' | null;
 
 function swapInGrid(grid: string[][], fr: number, fc: number, tr: number, tc: number): string[][] {
   const g = grid.map((row) => [...row]);
@@ -75,6 +92,11 @@ export function BingoPage() {
   const [syncBingo, setSyncBingo] = useState<BingoGameState | null>(null);
   const [playClock, setPlayClock] = useState(0);
   const [dragFrom, setDragFrom] = useState<{ r: number; c: number } | null>(null);
+  const [endModal, setEndModal] = useState<EndModal>(null);
+  const [rematch, setRematch] = useState(() => (playRoomId ? getRematch(playRoomId) : null));
+  const [abandonSnap, setAbandonSnap] = useState(() => (playRoomId ? getAbandon(playRoomId) : null));
+  const [tick, setTick] = useState(0);
+  const endHandledRef = useRef(false);
 
   useEffect(() => {
     if (!playRoomId || (matchRole !== 'host' && matchRole !== 'guest')) {
@@ -119,31 +141,104 @@ export function BingoPage() {
   }, [online, playRoomId, navigate]);
 
   useEffect(() => {
-    if (!online || !playRoomId || isRemoteLobby()) return;
+    if (!online || !playRoomId || isRemoteLobby() || endModal) return;
     const id = window.setInterval(() => {
       setSyncBingo(getBingoGame(playRoomId));
     }, 400);
     return () => clearInterval(id);
-  }, [online, playRoomId]);
+  }, [online, playRoomId, endModal]);
 
   const bingo = syncBingo;
 
+  const gameLive = useMemo(
+    () => (bingo ? coerceBingoWinner(bingo.winner as unknown) === 0 : false),
+    [bingo]
+  );
+
   useEffect(() => {
-    if (!bingo || bingo.winner !== 0) return;
+    if (!bingo || !gameLive || endModal || bingo.phase !== 'play') return;
     const id = window.setInterval(() => setPlayClock((x) => x + 1), 250);
     return () => clearInterval(id);
-  }, [bingo?.winner, bingo?.phase]);
+  }, [bingo, gameLive, endModal]);
 
-  if (!online) {
-    return (
-      <GameLayout docTitle="reference-final" onBack={() => navigate('/')}>
-        <div className="bingo-play omok-loading-wrap">
-          <ExcelMotionLoading size={31} label="대전 연결 필요" />
-          <p className="omok-loading">매칭된 방에서만 입장할 수 있습니다.</p>
-        </div>
-      </GameLayout>
-    );
-  }
+  useEffect(() => {
+    if (!online || !playRoomId) return;
+    const sync = () => setRematch(getRematch(playRoomId));
+    sync();
+    return subscribeRematch(playRoomId, sync);
+  }, [online, playRoomId]);
+
+  useEffect(() => {
+    if (!online || !playRoomId) return;
+    const sync = () => setAbandonSnap(getAbandon(playRoomId));
+    sync();
+    return subscribeAbandon(playRoomId, sync);
+  }, [online, playRoomId]);
+
+  useEffect(() => {
+    if (!online || !playRoomId || !matchRole || !abandonSnap) return;
+    if (abandonSnap.by !== matchRole) {
+      setEndModal('runway');
+      void clearRematch(playRoomId);
+    }
+  }, [abandonSnap, online, playRoomId, matchRole]);
+
+  useEffect(() => {
+    if (!online || !playRoomId || !syncBingo) return;
+    const w = coerceBingoWinner(syncBingo.winner as unknown);
+    if (w === 0) {
+      endHandledRef.current = false;
+      return;
+    }
+    if (endHandledRef.current) return;
+    endHandledRef.current = true;
+    void ensureRematchAfterGameEnd(playRoomId).then(() => {
+      setRematch(getRematch(playRoomId));
+    });
+    if (w === 'draw') setEndModal('draw');
+    else if (myColor === w) setEndModal('win');
+    else setEndModal('lose');
+  }, [online, playRoomId, syncBingo, myColor]);
+
+  useEffect(() => {
+    if (!online || !playRoomId || !rematch) return;
+    if (!rematch.hostFinal || !rematch.guestFinal) return;
+    void (async () => {
+      await tryBingoReset(playRoomId);
+      await clearRematch(playRoomId);
+      await clearAbandon(playRoomId);
+      setSyncBingo(getBingoGame(playRoomId));
+      setEndModal(null);
+      endHandledRef.current = false;
+    })();
+  }, [rematch, online, playRoomId]);
+
+  useEffect(() => {
+    if (!online || !endModal || endModal === 'runway') return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 250);
+    return () => clearInterval(id);
+  }, [online, endModal]);
+
+  useEffect(() => {
+    if (!online || !playRoomId || !rematch) return;
+    if (!endModal || endModal === 'runway') return;
+    if (rematch.hostFinal && rematch.guestFinal) return;
+    if (Date.now() <= rematch.deadline) return;
+    void clearRematch(playRoomId).then(() => {
+      sessionStorage.removeItem('playRoomId');
+      navigate('/');
+    });
+  }, [tick, online, playRoomId, rematch, endModal, navigate]);
+
+  useEffect(() => {
+    if (!online || !playRoomId || !matchRole) return;
+    return () => {
+      const g = getBingoGame(playRoomId);
+      if (g && coerceBingoWinner(g.winner as unknown) === 0) {
+        void signalAbandon(playRoomId, matchRole);
+      }
+    };
+  }, [online, playRoomId, matchRole]);
 
   const setupLeft = useMemo(() => {
     void playClock;
@@ -153,14 +248,23 @@ export function BingoPage() {
 
   const turnSecs = useMemo(() => {
     void playClock;
-    if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0) return 0;
+    if (!bingo || bingo.phase !== 'play' || !gameLive || endModal) return 0;
     const dl = bingo.turnDeadline ?? Date.now() + BINGO_PLAY_TURN_MS;
     return Math.max(0, Math.ceil((dl - Date.now()) / 1000));
-  }, [bingo, playClock]);
+  }, [bingo, playClock, gameLive, endModal]);
 
-  const topRowActive = bingo != null && bingo.phase === 'play' && bingo.winner === 0 && bingo.turn === oppColor;
+  const topRowActive =
+    bingo != null &&
+    bingo.phase === 'play' &&
+    gameLive &&
+    !endModal &&
+    bingo.turn === oppColor;
   const bottomRowActive =
-    bingo != null && bingo.phase === 'play' && bingo.winner === 0 && bingo.turn === myColor;
+    bingo != null &&
+    bingo.phase === 'play' &&
+    gameLive &&
+    !endModal &&
+    bingo.turn === myColor;
 
   const mySetupLocked = useMemo(() => {
     if (!bingo || bingo.phase !== 'setup' || !matchRole) return false;
@@ -214,7 +318,7 @@ export function BingoPage() {
 
   const onSelectCell = useCallback(
     (r: number, c: number) => {
-      if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0 || !playRoomId) return;
+      if (!bingo || bingo.phase !== 'play' || endModal || !gameLive || !playRoomId) return;
       if (bingo.turn !== myColor) return;
       const word = bingo.labels[r]?.[c];
       if (typeof word !== 'string') return;
@@ -224,21 +328,21 @@ export function BingoPage() {
         if (ok) setSyncBingo(getBingoGame(playRoomId));
       });
     },
-    [bingo, playRoomId, myColor]
+    [bingo, playRoomId, myColor, endModal, gameLive]
   );
 
   const onPassTurn = useCallback(() => {
-    if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0 || !playRoomId) return;
+    if (!bingo || bingo.phase !== 'play' || endModal || !gameLive || !playRoomId) return;
     if (bingo.turn !== myColor) return;
     void tryBingoPass(playRoomId, myColor).then((ok) => {
       if (ok) setSyncBingo(getBingoGame(playRoomId));
     });
-  }, [bingo, playRoomId, myColor]);
+  }, [bingo, playRoomId, myColor, endModal, gameLive]);
 
   const canPassTurn = useMemo(() => {
-    if (!bingo || bingo.phase !== 'play' || bingo.winner !== 0) return false;
+    if (!bingo || bingo.phase !== 'play' || endModal || !gameLive) return false;
     return bingo.turn === myColor;
-  }, [bingo, myColor]);
+  }, [bingo, myColor, endModal, gameLive]);
 
   const setupWaitingPeer = useMemo(() => {
     if (!bingo || bingo.phase !== 'setup' || !matchRole) return false;
@@ -247,18 +351,78 @@ export function BingoPage() {
     return myReady && !peerReady;
   }, [bingo, matchRole]);
 
+  const clearLocalBingoLayout = useCallback((rid: string) => {
+    try {
+      sessionStorage.removeItem(`bingoLocalLayout:v1:${rid}`);
+    } catch {
+      /* noop */
+    }
+  }, []);
+
   const goHome = useCallback(() => {
     const rid = sessionStorage.getItem('playRoomId');
+    if (rid) clearLocalBingoLayout(rid);
     if (rid) {
-      try {
-        sessionStorage.removeItem(`bingoLocalLayout:v1:${rid}`);
-      } catch {
-        /* noop */
-      }
+      void Promise.all([clearAbandon(rid), clearRematch(rid)]).then(() => {
+        sessionStorage.removeItem('playRoomId');
+        navigate('/');
+      });
+      return;
     }
     sessionStorage.removeItem('playRoomId');
     navigate('/');
-  }, [navigate]);
+  }, [navigate, clearLocalBingoLayout]);
+
+  const onRunwayOk = useCallback(() => {
+    const rid = sessionStorage.getItem('playRoomId');
+    if (rid) clearLocalBingoLayout(rid);
+    if (rid) {
+      void Promise.all([clearAbandon(rid), clearRematch(rid)]).then(() => {
+        sessionStorage.removeItem('playRoomId');
+        setEndModal(null);
+        navigate('/');
+      });
+      return;
+    }
+    sessionStorage.removeItem('playRoomId');
+    setEndModal(null);
+    navigate('/');
+  }, [navigate, clearLocalBingoLayout]);
+
+  const onFinal = useCallback(() => {
+    if (!playRoomId || !matchRole) return;
+    void pressRematchFinal(playRoomId, matchRole).then(() => {
+      setRematch(getRematch(playRoomId));
+    });
+  }, [playRoomId, matchRole]);
+
+  const onLeaveFirst = useCallback(() => {
+    const rid = playRoomId;
+    if (rid && matchRole) {
+      void (async () => {
+        clearLocalBingoLayout(rid);
+        await signalAbandon(rid, matchRole);
+        await clearRematch(rid);
+        sessionStorage.removeItem('playRoomId');
+        navigate('/');
+      })();
+      return;
+    }
+    sessionStorage.removeItem('playRoomId');
+    navigate('/');
+  }, [playRoomId, matchRole, navigate, clearLocalBingoLayout]);
+
+  const countdownSec = useMemo(() => {
+    if (!rematch) return REMATCH_SECONDS;
+    return Math.max(0, Math.ceil((rematch.deadline - Date.now()) / 1000));
+  }, [rematch, tick]);
+
+  const finalWaiting = useMemo(() => {
+    if (!rematch || !matchRole) return false;
+    const mine = matchRole === 'host' ? rematch.hostFinal : rematch.guestFinal;
+    const both = rematch.hostFinal && rematch.guestFinal;
+    return mine && !both;
+  }, [rematch, matchRole]);
 
   const setupCells = useMemo(() => {
     if (!bingo || bingo.phase !== 'setup') return null;
@@ -289,12 +453,14 @@ export function BingoPage() {
     if (!bingo || bingo.phase !== 'play') return null;
     const { labels, pendingWord, subjectId, markedByIndex } = bingo;
     const marked = derivedMarkedGrid(labels, subjectId, markedByIndex);
+    const w = coerceBingoWinner(bingo.winner as unknown);
+    const inPlay = w === 0 && !endModal;
     return labels.map((row, ri) =>
       row.map((label, ci) => {
         const m = marked[ri][ci];
         const pendingHere = pendingWord != null && pendingWord === label;
         const isMyTurn = bingo.turn === myColor;
-        const clickable = bingo.winner === 0 && isMyTurn && m === 0;
+        const clickable = inPlay && isMyTurn && m === 0;
         return (
           <BingoPlayCell
             key={`p-${ri}-${ci}`}
@@ -309,13 +475,14 @@ export function BingoPage() {
         );
       })
     );
-  }, [bingo, myColor, onSelectCell]);
+  }, [bingo, myColor, onSelectCell, endModal]);
 
   const statusHint = useMemo(() => {
     if (!bingo) return '…';
-    if (bingo.winner === 'draw') return '무승부입니다.';
-    if (bingo.winner === myColor) return '승리했습니다!';
-    if (bingo.winner !== 0) return '패배했습니다.';
+    const w = coerceBingoWinner(bingo.winner as unknown);
+    if (w === 'draw') return '무승부입니다.';
+    if (w === myColor) return '승리했습니다!';
+    if (w !== 0) return '패배했습니다.';
     if (bingo.phase === 'setup') {
       if (setupWaitingPeer) return '잠시만요 — 상대 준비를 기다리는 중입니다.';
       return '드래그하여 순서를 바꾼 뒤 완료를 누르세요. (호스트·게스트 모두 완료 시 시작)';
@@ -325,12 +492,16 @@ export function BingoPage() {
     return '내 차례 — 빈 칸을 눌러 표시하거나 턴 넘기기로 건너뛰세요. (15초)';
   }, [bingo, myColor, setupWaitingPeer]);
 
-  const onBingoRematch = useCallback(() => {
-    if (!playRoomId) return;
-    void tryBingoReset(playRoomId).then((ok) => {
-      if (ok) setSyncBingo(getBingoGame(playRoomId));
-    });
-  }, [playRoomId]);
+  if (!online) {
+    return (
+      <GameLayout docTitle="reference-final" onBack={() => navigate('/')}>
+        <div className="bingo-play omok-loading-wrap">
+          <ExcelMotionLoading size={31} label="대전 연결 필요" />
+          <p className="omok-loading">매칭된 방에서만 입장할 수 있습니다.</p>
+        </div>
+      </GameLayout>
+    );
+  }
 
   if (syncBingo === null) {
     return (
@@ -346,6 +517,7 @@ export function BingoPage() {
   if (!bingo) return null;
 
   const subjectLine = `SUBJECT : ${BINGO_SUBJECT_LABEL[bingo.subjectId]}`;
+  const winnerNorm = coerceBingoWinner(bingo.winner as unknown);
 
   return (
     <>
@@ -406,7 +578,7 @@ export function BingoPage() {
                   }
                   aria-live="polite"
                 >
-                  {bingo.winner === 0 && bingo.turn === oppColor ? String(turnSecs) : '—'}
+                  {winnerNorm === 0 && !endModal && bingo.turn === oppColor ? String(turnSecs) : '—'}
                 </div>
               </div>
 
@@ -447,7 +619,7 @@ export function BingoPage() {
                   }
                   aria-live="polite"
                 >
-                  {bingo.winner === 0 && bingo.turn === myColor ? String(turnSecs) : '—'}
+                  {winnerNorm === 0 && !endModal && bingo.turn === myColor ? String(turnSecs) : '—'}
                 </div>
               </div>
 
@@ -458,7 +630,7 @@ export function BingoPage() {
                   disabled={!canPassTurn}
                   onClick={onPassTurn}
                 >
-                  {bingo.turn !== myColor && bingo.winner === 0
+                  {bingo.turn !== myColor && winnerNorm === 0
                     ? '잠시만요'
                     : bingo.pendingWord != null
                       ? '확정 (턴 넘기기)'
@@ -470,42 +642,15 @@ export function BingoPage() {
         </div>
       </GameLayout>
 
-      {bingo.winner !== 0 && (
-        <div className="bingo-end-overlay" role="presentation">
-          <div className="bingo-end-card" role="alertdialog" aria-modal="true">
-            <h2 className="bingo-end-title">
-              {bingo.winner === 'draw'
-                ? '무승부'
-                : bingo.winner === myColor
-                  ? bingo.endReason === 'double_pass'
-                    ? '승리 (상대 중단)'
-                    : '승리'
-                  : bingo.endReason === 'double_pass'
-                    ? '패배 (중단 처리)'
-                    : '패배'}
-            </h2>
-            <p className="bingo-end-sub">
-              {bingo.winner === 'draw'
-                ? '가득 찼습니다.'
-                : bingo.winner === myColor
-                  ? bingo.endReason === 'double_pass'
-                    ? '연속으로 표시 없이 턴이 넘어가 상대가 중단한 것으로 처리되었습니다.'
-                    : '한 줄을 완성했습니다.'
-                  : bingo.endReason === 'double_pass'
-                    ? '연속으로 표시 없이 턴이 넘어가 게임이 종료되었습니다.'
-                    : '상대가 한 줄을 먼저 완성했습니다.'}
-            </p>
-            <div className="bingo-end-actions">
-              <button type="button" className="bingo-btn bingo-btn--commit" onClick={onBingoRematch}>
-                재대국
-              </button>
-              <button type="button" className="bingo-btn bingo-btn--idle" onClick={goHome}>
-                홈으로
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <OmokEndModals
+        variant={endModal}
+        countdownSec={countdownSec}
+        finalWaiting={finalWaiting}
+        opponentName={oppName}
+        onRunwayOk={onRunwayOk}
+        onFinal={onFinal}
+        onLeaveFirst={onLeaveFirst}
+      />
     </>
   );
 }

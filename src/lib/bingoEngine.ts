@@ -324,6 +324,12 @@ function applyEmptyPassAdvance(state: BingoGameState, passer: 1 | 2): BingoGameS
   return advancePlayTurn({ ...state, emptyPassStreak: streak });
 }
 
+/**
+ * 승패 규칙: 같은 단어 마크는 양쪽 판에 동일(인덱스)하게 반영됨.
+ * 호스트(색 1)는 hostLayoutFlat 기준으로, 게스트(색 2)는 guestLayoutFlat 기준으로
+ * 가로·세로·대각 한 줄이 자기 색으로만 채워졌는지 본다.
+ * 한쪽만 완성 → 그쪽 승; 동시 완성 → 무승부(line); 칸이 가득 차면 무승부(full).
+ */
 function resolveWinAfterMark(
   state: BingoGameState,
   markedByIndex: (0 | 1 | 2)[]
