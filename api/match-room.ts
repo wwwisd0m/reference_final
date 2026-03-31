@@ -375,8 +375,16 @@ function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
       ? (o.labels as string[][])
       : null;
 
-  let markedByIndex = o.markedByIndex as (0 | 1 | 2)[] | undefined;
-  if (!Array.isArray(markedByIndex) || markedByIndex.length !== BINGO_CELL_COUNT) {
+  function normalizeMarkVal(v: unknown): 0 | 1 | 2 {
+    if (v === 1 || v === '1') return 1;
+    if (v === 2 || v === '2') return 2;
+    return 0;
+  }
+
+  let markedByIndex = o.markedByIndex as unknown[] | undefined;
+  if (Array.isArray(markedByIndex) && markedByIndex.length === BINGO_CELL_COUNT) {
+    markedByIndex = markedByIndex.map((cell) => normalizeMarkVal(cell)) as (0 | 1 | 2)[];
+  } else {
     markedByIndex = emptyMarkedByIndex();
     const legacyMarked = o.marked as (0 | 1 | 2)[][] | undefined;
     const labels = labelsIn;
@@ -385,7 +393,7 @@ function coerceBingoFromRedis(raw: unknown): BingoGameState | null {
         const row = labels[r];
         if (!row || row.length !== BINGO_SIZE) continue;
         for (let c = 0; c < BINGO_SIZE; c++) {
-          const v = legacyMarked[r]?.[c] ?? 0;
+          const v = normalizeMarkVal(legacyMarked[r]?.[c]);
           if (v === 0) continue;
           const idx = wordToCanonicalIndex(subjectId, row[c] ?? '');
           if (idx >= 0) markedByIndex[idx] = v;
@@ -450,10 +458,6 @@ function initialBingoStateForSubject(subjectId: BingoSubjectId): BingoGameState 
     emptyPassStreak: 0,
     updatedAt: Date.now(),
   };
-}
-
-function initialBingoState(): BingoGameState {
-  return initialBingoStateForSubject(pickRandomSubject());
 }
 
 const LINE_INDEXES: [number, number][][] = [
@@ -577,9 +581,8 @@ function commitPendingMark(state: BingoGameState): BingoGameState | null {
 
 function tryFinishSetupPhase(state: BingoGameState): BingoGameState {
   if (state.phase !== 'setup') return state;
-  const timeUp = Date.now() > state.setupDeadline;
   const bothReady = state.hostReady && state.guestReady;
-  if (!timeUp && !bothReady) return state;
+  if (!bothReady) return state;
 
   let hostLayoutFlat = state.hostLayoutFlat;
   let guestLayoutFlat = state.guestLayoutFlat;
@@ -721,8 +724,8 @@ type StoredRoom = {
   gameId: string;
   status: RoomStatus;
   updatedAt: number;
-  /** 빙고 방: 호스트가 방을 만들 때 정해진 주제 — bingoEnsure 시 공통 단어 풀에 사용 */
-  bingoSubjectId: BingoSubjectId | null;
+  /** 빙고 방: 호스트 `ensure` 시 1회 랜덤 결정. 오목은 null */
+  subjectId: BingoSubjectId | null;
   omok: OmokGameState | null;
   bingo: BingoGameState | null;
   rematch: RematchState | null;
@@ -741,17 +744,37 @@ function sanitizeNick(raw: string): string {
   return trimmed.slice(0, 8) || '';
 }
 
-function normalize(r: StoredRoom): StoredRoom {
-  const bingoSubjectId =
-    r.bingoSubjectId ?? (r.bingo ? r.bingo.subjectId : null) ?? null;
+function isBingoSubjectId(v: unknown): v is BingoSubjectId {
+  return v === 'fruit' || v === 'flower' || v === 'animal';
+}
+
+/** 레거시 `bingoSubjectId`·빈 페이로드까지 `subjectId`로 통일 */
+function normalize(r: StoredRoom & { bingoSubjectId?: BingoSubjectId | null }): StoredRoom {
+  let subjectId: BingoSubjectId | null = null;
+  if (isBingoSubjectId(r.subjectId)) {
+    subjectId = r.subjectId;
+  } else if (isBingoSubjectId(r.bingoSubjectId)) {
+    subjectId = r.bingoSubjectId;
+  } else if (r.bingo && isBingoSubjectId(r.bingo.subjectId)) {
+    subjectId = r.bingo.subjectId;
+  }
+  if (r.gameId !== 'bingo') {
+    subjectId = null;
+  }
+
   let bingo: BingoGameState | null = r.bingo ?? null;
   if (bingo != null) {
     const c = coerceBingoFromRedis(bingo);
     if (c) bingo = c;
   }
+
   return {
-    ...r,
-    bingoSubjectId,
+    hostNickname: r.hostNickname,
+    guestNickname: r.guestNickname,
+    gameId: r.gameId,
+    status: r.status,
+    updatedAt: r.updatedAt,
+    subjectId,
     omok: r.omok ?? null,
     bingo,
     rematch: r.rematch ?? null,
@@ -889,7 +912,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             gameId,
             status: 'waiting',
             updatedAt: Date.now(),
-            bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
+            subjectId: gameId === 'bingo' ? pickRandomSubject() : null,
             omok: null,
             bingo: null,
             rematch: null,
@@ -907,7 +930,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             gameId,
             status: 'waiting',
             updatedAt: Date.now(),
-            bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
+            subjectId: gameId === 'bingo' ? pickRandomSubject() : null,
             omok: null,
             bingo: null,
             rematch: null,
@@ -925,9 +948,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           updatedAt: Date.now(),
         };
         if (gameId !== 'bingo') {
-          next.bingoSubjectId = null;
+          next.subjectId = null;
         } else if (existing.gameId !== 'bingo') {
-          next.bingoSubjectId = pickRandomSubject();
+          next.subjectId = pickRandomSubject();
         }
         await save(roomId, next);
         res.status(200).json({ room: next });
@@ -979,7 +1002,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           ...room,
           status: 'cancelled',
           updatedAt: Date.now(),
-          bingoSubjectId: null,
+          subjectId: null,
           omok: null,
           bingo: null,
           rematch: null,
@@ -1084,15 +1107,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           return;
         }
         const normalized = normalize(room);
-        const subjectId =
-          normalized.bingo?.subjectId ??
-          normalized.bingoSubjectId ??
-          pickRandomSubject();
+        let subjectId: BingoSubjectId | undefined = isBingoSubjectId(normalized.subjectId)
+          ? normalized.subjectId
+          : normalized.bingo?.subjectId;
+        if (!isBingoSubjectId(subjectId)) {
+          subjectId = pickRandomSubject();
+        }
         const bingo = normalized.bingo ?? initialBingoStateForSubject(subjectId);
+        const bingoAligned =
+          bingo.subjectId === subjectId
+            ? bingo
+            : { ...bingo, subjectId, labels: buildShuffledGrid5(subjectId) };
         const next: StoredRoom = {
           ...normalized,
-          bingo,
-          bingoSubjectId: bingo.subjectId,
+          bingo: bingoAligned,
+          subjectId,
           updatedAt: Date.now(),
         };
         await save(roomId, next);
@@ -1180,11 +1209,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           res.status(200).json({ room, ok: false });
           return;
         }
-        const subjectId = pickRandomSubject();
+        const subjectId = isBingoSubjectId(room.subjectId)
+          ? room.subjectId
+          : room.bingo.subjectId;
         const next: StoredRoom = {
           ...room,
           bingo: initialBingoStateForSubject(subjectId),
-          bingoSubjectId: subjectId,
+          subjectId,
           updatedAt: Date.now(),
         };
         await save(roomId, next);

@@ -82,10 +82,8 @@ function shuffleInPlace<T>(arr: T[]): void {
   }
 }
 
-export function pickRandomSubject(): BingoSubjectId {
-  const keys: BingoSubjectId[] = ['fruit', 'flower', 'animal'];
-  return keys[Math.floor(Math.random() * keys.length)];
-}
+/** 연습 모드 등 서버·방 `subjectId` 없이 쓸 때만 사용 (매칭 빙고 주제와 무관) */
+export const PRACTICE_DEFAULT_BINGO_SUBJECT: BingoSubjectId = 'fruit';
 
 export function buildShuffledGrid5(subjectId: BingoSubjectId): string[][] {
   const pool = [...POOLS[subjectId]];
@@ -102,12 +100,11 @@ export function emptyMarkedByIndex(): (0 | 1 | 2)[] {
   return Array.from({ length: BINGO_CELL_COUNT }, () => 0 as 0 | 1 | 2);
 }
 
-/** `subjectId` 생략 시 연습 모드용 랜덤 주제 */
-export function initialBingoState(subjectId?: BingoSubjectId): BingoGameState {
-  const id = subjectId ?? pickRandomSubject();
+/** 반드시 방·서버에서 정해진 `subjectId`로 생성 (연습은 `PRACTICE_DEFAULT_BINGO_SUBJECT` 등) */
+export function initialBingoState(subjectId: BingoSubjectId): BingoGameState {
   return {
-    subjectId: id,
-    labels: buildShuffledGrid5(id),
+    subjectId,
+    labels: buildShuffledGrid5(subjectId),
     phase: 'setup',
     setupDeadline: Date.now() + BINGO_SETUP_MS,
     hostReady: false,
@@ -124,7 +121,9 @@ export function initialBingoState(subjectId?: BingoSubjectId): BingoGameState {
   };
 }
 
-export const resetBingoState = (): BingoGameState => initialBingoState();
+export function resetBingoState(subjectId: BingoSubjectId = PRACTICE_DEFAULT_BINGO_SUBJECT): BingoGameState {
+  return initialBingoState(subjectId);
+}
 
 /** Redis 등 구형 JSON(marked 2D) → 단어 인덱스 형식 */
 export function coerceBingoGameState(raw: unknown): BingoGameState | null {
@@ -138,8 +137,17 @@ export function coerceBingoGameState(raw: unknown): BingoGameState | null {
       ? (o.labels as string[][])
       : null;
 
-  let markedByIndex = o.markedByIndex as (0 | 1 | 2)[] | undefined;
-  if (!Array.isArray(markedByIndex) || markedByIndex.length !== BINGO_CELL_COUNT) {
+  function normalizeMarkVal(v: unknown): 0 | 1 | 2 {
+    if (v === 1 || v === '1') return 1;
+    if (v === 2 || v === '2') return 2;
+    return 0;
+  }
+
+  let markedByIndex: (0 | 1 | 2)[];
+  const rawMarks = o.markedByIndex as unknown[] | undefined;
+  if (Array.isArray(rawMarks) && rawMarks.length === BINGO_CELL_COUNT) {
+    markedByIndex = rawMarks.map((cell) => normalizeMarkVal(cell));
+  } else {
     markedByIndex = emptyMarkedByIndex();
     const legacyMarked = o.marked as (0 | 1 | 2)[][] | undefined;
     const labels = labelsIn;
@@ -148,7 +156,7 @@ export function coerceBingoGameState(raw: unknown): BingoGameState | null {
         const row = labels[r];
         if (!row || row.length !== BINGO_SIZE) continue;
         for (let c = 0; c < BINGO_SIZE; c++) {
-          const v = legacyMarked[r]?.[c] ?? 0;
+          const v = normalizeMarkVal(legacyMarked[r]?.[c]);
           if (v === 0) continue;
           const idx = wordToCanonicalIndex(subjectId, row[c] ?? '');
           if (idx >= 0) markedByIndex[idx] = v;
@@ -262,7 +270,11 @@ export function derivedMarkedGrid(
   return labels.map((row) =>
     row.map((word) => {
       const idx = wordToCanonicalIndex(subjectId, word);
-      return idx >= 0 ? markedByIndex[idx] : (0 as 0 | 1 | 2);
+      if (idx < 0) return 0 as 0 | 1 | 2;
+      const v = markedByIndex[idx] as unknown;
+      if (v === 1 || v === '1') return 1;
+      if (v === 2 || v === '2') return 2;
+      return 0;
     })
   );
 }
@@ -343,12 +355,11 @@ function commitPendingMark(state: BingoGameState): BingoGameState | null {
   return resolveWinAfterMark(state, nextIdx);
 }
 
-/** setup → play (둘 다 준비 또는 시간 초과) */
+/** setup → play — 반드시 호스트·게스트 모두 완료를 눌러야 함 (시간 초과만으로는 시작 안 함) */
 export function tryFinishSetupPhase(state: BingoGameState): BingoGameState {
   if (state.phase !== 'setup') return state;
-  const timeUp = Date.now() > state.setupDeadline;
   const bothReady = state.hostReady && state.guestReady;
-  if (!timeUp && !bothReady) return state;
+  if (!bothReady) return state;
 
   let hostLayoutFlat = state.hostLayoutFlat;
   let guestLayoutFlat = state.guestLayoutFlat;

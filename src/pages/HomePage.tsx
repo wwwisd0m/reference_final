@@ -5,7 +5,7 @@ import { CreditFrame } from '../components/home/FigmaPopovers';
 import { SkinSelect, TopBarDoc } from '../components/home/HomeChrome';
 import './home.css';
 import { useTheme } from '../context/ThemeContext';
-import { nicknameFromInput, sanitizeNickname } from '../lib/nickname';
+import { defaultNickname, sanitizeNickname } from '../lib/nickname';
 import { ASSETS_ADOBE, ASSETS_EXCEL, ASSETS_SIMPLE } from '../theme/figmaAssets';
 
 type GameId = 'omok' | 'bingo';
@@ -14,6 +14,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const [nick, setNick] = useState('');
+  const [nickPlaceholder] = useState(() => defaultNickname());
   const [creditOpen, setCreditOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameId>('omok');
 
@@ -21,11 +22,11 @@ export function HomePage() {
     theme === 'adobe' ? ASSETS_ADOBE : theme === 'vscode' ? ASSETS_SIMPLE : ASSETS_EXCEL;
 
   const goNext = useCallback(() => {
-    const n = nicknameFromInput(nick);
+    const n = sanitizeNickname(nick.trim()) || nickPlaceholder;
     sessionStorage.setItem('nickname', n);
     sessionStorage.setItem(`hostRoom:${selectedGame}`, crypto.randomUUID());
     navigate(`/match/${selectedGame}`, { state: { nickname: n } });
-  }, [navigate, nick, selectedGame]);
+  }, [navigate, nick, nickPlaceholder, selectedGame]);
 
   const nextArrow =
     theme === 'adobe'
@@ -70,6 +71,7 @@ export function HomePage() {
               className="nick-field__input"
               maxLength={8}
               value={nick}
+              placeholder={nickPlaceholder}
               onChange={(e) => setNick(sanitizeNickname(e.target.value))}
               autoComplete="off"
               aria-label="닉네임"

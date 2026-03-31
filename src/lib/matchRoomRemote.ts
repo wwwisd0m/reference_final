@@ -89,7 +89,7 @@ export function subscribeRoom(roomId: string, cb: () => void): () => void {
       roomId,
       setInterval(() => {
         void pullRoom(roomId).then(() => notify(roomId));
-      }, 1000)
+      }, 400)
     );
   }
   listeners.get(roomId)!.add(cb);

@@ -6,7 +6,7 @@ import { WaitingDotsText } from '../components/match/WaitingDotsText';
 import { TopBarDoc } from '../components/home/HomeChrome';
 import './match.css';
 import './home.css';
-import { nicknameFromInput, sanitizeNickname } from '../lib/nickname';
+import { defaultNickname, sanitizeNickname } from '../lib/nickname';
 import { isRemoteLobby } from '../lib/lobbyMode';
 import {
   cancelRoom,
@@ -107,6 +107,7 @@ export function MatchPage() {
   const roomIdHost = useMemo(() => sessionStorage.getItem(`hostRoom:${gameId}`) ?? '', [gameId]);
 
   const [nickGuest, setNickGuest] = useState('');
+  const [guestNickPlaceholder] = useState(() => defaultNickname());
   const [roomSnap, setRoomSnap] = useState<RoomState | null>(() =>
     guest && roomIdGuest && !isRemoteLobby() ? getRoom(roomIdGuest) : null
   );
@@ -203,7 +204,7 @@ export function MatchPage() {
   }, [guest, roomIdHost]);
 
   const joinGame = useCallback(async () => {
-    const n = nicknameFromInput(nickGuest);
+    const n = sanitizeNickname(nickGuest.trim()) || guestNickPlaceholder;
     if (!roomIdGuest) return;
     const ok = await joinRoom(roomIdGuest, n);
     if (!ok) {
@@ -221,7 +222,7 @@ export function MatchPage() {
       sessionStorage.removeItem('playRoomId');
     }
     navigate(playPath(gameId));
-  }, [gameId, navigate, nickGuest, roomIdGuest]);
+  }, [gameId, guestNickPlaceholder, navigate, nickGuest, roomIdGuest]);
 
   const copyInvite = useCallback(() => {
     const path = `match/${gameId}?guest=1&room=${encodeURIComponent(roomIdHost)}`;
@@ -319,6 +320,7 @@ export function MatchPage() {
                   id="guest-nick"
                   className="nick-field__input"
                   value={nickGuest}
+                  placeholder={guestNickPlaceholder}
                   maxLength={8}
                   onChange={(e) => setNickGuest(sanitizeNickname(e.target.value))}
                   autoComplete="off"

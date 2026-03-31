@@ -12,6 +12,7 @@ import {
   derivedMarkedGrid,
   initialBingoState,
   normalizeBingoState,
+  PRACTICE_DEFAULT_BINGO_SUBJECT,
   resolveBingoAll,
   type BingoGameState,
 } from '../lib/bingoEngine';
@@ -49,7 +50,9 @@ export function BingoPage() {
   const myColor: Color = matchRole === 'guest' ? 2 : 1;
   const oppColor: Color = myColor === 1 ? 2 : 1;
 
-  const [practiceBingo, setPracticeBingo] = useState<BingoGameState>(() => initialBingoState());
+  const [practiceBingo, setPracticeBingo] = useState<BingoGameState>(() =>
+    initialBingoState(PRACTICE_DEFAULT_BINGO_SUBJECT)
+  );
   const [syncBingo, setSyncBingo] = useState<BingoGameState | null>(null);
   const [playClock, setPlayClock] = useState(0);
   const [dragFrom, setDragFrom] = useState<{ r: number; c: number } | null>(null);
@@ -304,7 +307,7 @@ export function BingoPage() {
     if (bingo.winner !== 0) return '패배했습니다.';
     if (bingo.phase === 'setup') {
       if (setupWaitingPeer) return '잠시만요 — 상대 준비를 기다리는 중입니다.';
-      return '드래그하여 순서를 바꾼 뒤 완료를 누르세요. (30초 후 자동 시작)';
+      return '드래그하여 순서를 바꾼 뒤 완료를 누르세요. (호스트·게스트 모두 완료 시 시작)';
     }
     if (bingo.turn !== myColor) return '잠시만요 — 상대 차례입니다.';
     if (bingo.pendingWord != null) return '선택한 칸을 턴 넘기기로 확정하세요.';
@@ -318,7 +321,7 @@ export function BingoPage() {
       });
       return;
     }
-    setPracticeBingo(initialBingoState());
+    setPracticeBingo((prev) => initialBingoState(prev.subjectId));
   }, [online, playRoomId]);
 
   if (online && syncBingo === null) {

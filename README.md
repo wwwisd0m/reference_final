@@ -56,7 +56,7 @@ npm run preview  # dist 미리보기
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
 - `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
-- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: 호스트가 방을 만들 때 `bingoSubjectId`(과일/꽃/동물)를 Redis에 저장하고, 표시(`markedByIndex`)는 **단어(정렬 풀 인덱스)** 기준으로 동기화됩니다. 준비 완료 시 각자 `layoutFlat`(25단어 배치)만 서버에 올려 승리 판정(호스트 판·게스트 판 각각 한 줄 완성)에 쓰고, 드래그로 바꾸는 **내 판 순서**는 `sessionStorage`에만 둡니다. `bingoGrid` API는 더 이상 상태를 바꾸지 않습니다(호환용 no-op).  
+- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고(온라인)**: 호스트가 `ensure`로 빙고 방을 만들 때 방 객체의 **`subjectId`**(과일/꽃/동물)를 Redis에 **1회** 저장하고, GET 시 게스트도 동일 필드를 받습니다. 클라이언트는 `subjectId`로만 단어 풀을 구성합니다. 표시(`markedByIndex`)는 **단어(정렬 풀 인덱스)** 기준으로 동기화됩니다. **시작**은 호스트·게스트 **둘 다 완료** 후에만. 레거시 키 `bingoSubjectId`는 API `normalize`에서 `subjectId`로 흡수합니다.  
 
 ---
 

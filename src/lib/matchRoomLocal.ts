@@ -1,7 +1,12 @@
 import { sanitizeNickname } from './nickname';
 import type { BingoGameState, BingoSubjectId } from './bingoEngine';
-import { pickRandomSubject } from './bingoEngine';
 import type { OmokGameState } from './omokEngine';
+
+/** 호스트가 빙고 방을 처음 만들 때만 — `bingoEngine`에는 두지 않음 (서버 `ensure`와 동일 역할) */
+function drawRoomBingoSubject(): BingoSubjectId {
+  const keys: BingoSubjectId[] = ['fruit', 'flower', 'animal'];
+  return keys[Math.floor(Math.random() * keys.length)];
+}
 
 /** omokRematch / 서버 JSON과 구조만 맞춤 (순환 import 방지) */
 type RematchSnap = { hostFinal: boolean; guestFinal: boolean; deadline: number };
@@ -18,8 +23,8 @@ export type RoomState = {
   gameId: string;
   status: RoomStatus;
   updatedAt: number;
-  /** 빙고: 호스트 방 생성 시 정해진 주제 (원격 API `StoredRoom.bingoSubjectId` 와 동일 의미) */
-  bingoSubjectId?: BingoSubjectId | null;
+  /** 빙고 방: 호스트 `ensureHostRoom` 시 1회 결정. 오목은 null/미설정 (원격 API `StoredRoom.subjectId` 와 동일) */
+  subjectId?: BingoSubjectId | null;
   /** Vercel 등 원격 로비에서만 서버가 채움 */
   omok?: OmokGameState | null;
   bingo?: BingoGameState | null;
@@ -29,6 +34,13 @@ export type RoomState = {
 
 function roomKey(roomId: string): string {
   return ROOM_PREFIX + roomId;
+}
+
+function migrateLegacyRoom(raw: RoomState & { bingoSubjectId?: BingoSubjectId | null }): RoomState {
+  if (raw.subjectId == null && raw.bingoSubjectId != null) {
+    return { ...raw, subjectId: raw.bingoSubjectId };
+  }
+  return raw;
 }
 
 function broadcast(roomId: string): void {
@@ -55,7 +67,8 @@ export function getRoom(roomId: string): RoomState | null {
   try {
     const raw = localStorage.getItem(roomKey(roomId));
     if (!raw) return null;
-    return JSON.parse(raw) as RoomState;
+    const parsed = JSON.parse(raw) as RoomState & { bingoSubjectId?: BingoSubjectId | null };
+    return migrateLegacyRoom(parsed);
   } catch {
     return null;
   }
@@ -72,7 +85,7 @@ export function ensureHostRoom(roomId: string, hostNickname: string, gameId: str
       gameId,
       status: 'waiting',
       updatedAt: Date.now(),
-      bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
+      subjectId: gameId === 'bingo' ? drawRoomBingoSubject() : null,
     });
     return;
   }
@@ -84,7 +97,7 @@ export function ensureHostRoom(roomId: string, hostNickname: string, gameId: str
       gameId,
       status: 'waiting',
       updatedAt: Date.now(),
-      bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
+      subjectId: gameId === 'bingo' ? drawRoomBingoSubject() : null,
     });
     return;
   }
@@ -97,9 +110,9 @@ export function ensureHostRoom(roomId: string, hostNickname: string, gameId: str
       updatedAt: Date.now(),
     };
     if (gameId !== 'bingo') {
-      next.bingoSubjectId = null;
+      next.subjectId = null;
     } else if (existing.gameId !== 'bingo') {
-      next.bingoSubjectId = pickRandomSubject();
+      next.subjectId = drawRoomBingoSubject();
     }
     setRoom(roomId, next);
   }

@@ -12,7 +12,6 @@ import {
   flattenLabels,
   initialBingoState,
   normalizeBingoState,
-  pickRandomSubject,
   resolveBingoAll,
   type BingoGameState,
   type BingoSubjectId,
@@ -21,13 +20,17 @@ import { setRoom } from './matchRoomLocal';
 
 export type { BingoGameState };
 
+function isRoomBingoSubject(v: unknown): v is BingoSubjectId {
+  return v === 'fruit' || v === 'flower' || v === 'animal';
+}
+
 const LOCAL_LAYOUT_PREFIX = 'bingoLocalLayout:v1:';
 
 function localLayoutStorageKey(roomId: string): string {
   return LOCAL_LAYOUT_PREFIX + roomId;
 }
 
-/** 원격: 내 판 배치만 sessionStorage — 서버와 동기화하지 않음 */
+/** 원격: 내 판 배치만 sessionStorage — 서버는 동기화하지 않음 */
 export function persistLocalBingoLayout(
   roomId: string,
   subjectId: BingoSubjectId,
@@ -61,14 +64,28 @@ function readLocalLayout(
   }
 }
 
-function mergeRemoteLabels(roomId: string, serverBingo: BingoGameState): BingoGameState {
-  const cached = readLocalLayout(roomId, serverBingo.subjectId);
+/** 방 `subjectId`(Redis·GET)를 단일 기준으로 빙고 주제 고정 */
+function mergeRemoteLabels(
+  roomId: string,
+  roomSubjectId: BingoSubjectId | null | undefined,
+  serverBingo: BingoGameState
+): BingoGameState {
+  const sid = isRoomBingoSubject(roomSubjectId) ? roomSubjectId : serverBingo.subjectId;
+  let base =
+    serverBingo.subjectId === sid
+      ? serverBingo
+      : {
+          ...serverBingo,
+          subjectId: sid,
+          labels: buildShuffledGrid5(sid),
+        };
+  const cached = readLocalLayout(roomId, sid);
   if (cached) {
-    return { ...serverBingo, labels: cached };
+    return { ...base, labels: cached };
   }
-  const labels = buildShuffledGrid5(serverBingo.subjectId);
-  persistLocalBingoLayout(roomId, serverBingo.subjectId, labels);
-  return { ...serverBingo, labels };
+  const labels = buildShuffledGrid5(sid);
+  persistLocalBingoLayout(roomId, sid, labels);
+  return { ...base, labels };
 }
 
 function patchLocalRoomBingo(roomId: string, nextBingo: BingoGameState): void {
@@ -84,11 +101,19 @@ function normalizeFromCache(raw: BingoGameState | null | undefined): BingoGameSt
 
 export function getBingoGame(roomId: string): BingoGameState | null {
   const rawRoom = getRoom(roomId);
+  const roomSubjectId = rawRoom?.subjectId;
   const b = normalizeFromCache(rawRoom?.bingo ?? null);
   if (!b) return null;
-  const resolved = resolveBingoAll(normalizeBingoState(b));
+  let resolved = resolveBingoAll(normalizeBingoState(b));
   if (isRemoteLobby()) {
-    return mergeRemoteLabels(roomId, resolved);
+    return mergeRemoteLabels(roomId, roomSubjectId, resolved);
+  }
+  if (isRoomBingoSubject(roomSubjectId) && resolved.subjectId !== roomSubjectId) {
+    resolved = {
+      ...resolved,
+      subjectId: roomSubjectId,
+      labels: buildShuffledGrid5(roomSubjectId),
+    };
   }
   if (bingoStateNeedsPersist(b, resolved)) {
     patchLocalRoomBingo(roomId, resolved);
@@ -104,12 +129,12 @@ export async function ensureBingoGame(roomId: string): Promise<void> {
   const room = getRoom(roomId);
   if (!room || room.gameId !== 'bingo') return;
   if (room.bingo) return;
-  const subjectId = room.bingoSubjectId ?? pickRandomSubject();
+  const subjectId = isRoomBingoSubject(room.subjectId) ? room.subjectId : null;
+  if (!subjectId) return;
   const nextBingo = initialBingoState(subjectId);
   setRoom(roomId, {
     ...room,
     bingo: nextBingo,
-    bingoSubjectId: subjectId,
     updatedAt: Date.now(),
   });
 }
@@ -194,11 +219,12 @@ export async function tryBingoReset(roomId: string): Promise<boolean> {
   }
   const room = getRoom(roomId);
   if (!room?.bingo || room.bingo.winner === 0) return false;
-  const subjectId = pickRandomSubject();
+  const subjectId = isRoomBingoSubject(room.subjectId)
+    ? room.subjectId
+    : room.bingo.subjectId;
   setRoom(roomId, {
     ...room,
     bingo: initialBingoState(subjectId),
-    bingoSubjectId: subjectId,
     updatedAt: Date.now(),
   });
   return true;
