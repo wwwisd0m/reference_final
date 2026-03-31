@@ -64,7 +64,7 @@ npm run preview  # dist 미리보기
 - 기획: 아델.lee  
 - 디자인: 홍디  
 - 프론트엔드: Oxy  
-- 백엔드: (탈주) → Claude AI  
+- 백엔드: (탈주) → Cursor AI 
 
 ## 📧 버그 리포트
 
