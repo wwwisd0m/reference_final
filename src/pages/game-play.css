@@ -359,7 +359,7 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   color: var(--omok-btn-turn-idle-text);
 }
 
-/* —— 빙고 —— */
+/* —— 빙고 —— (Excel 대전·배치: Figma A_G2_bingo_01 토큰) */
 .bingo-play {
   display: flex;
   flex-direction: column;
@@ -376,9 +376,11 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
 
 .bingo-board-wrap {
   margin: 0 -4px;
-  padding: 12px 8px 16px;
+  padding: 16px 12px 20px;
   background: var(--bingo-sheet-bg);
   border: 1px solid var(--bingo-sheet-border);
+  border-radius: 0;
+  box-sizing: border-box;
 }
 
 .bingo-opponent-caption,
@@ -457,6 +459,10 @@ html[data-theme='vscode'] .omok-btn-turn--commit:hover {
   border: 1px solid var(--bingo-drag-border);
   background: var(--bingo-drag-bg);
   color: var(--bingo-drag-text);
+}
+
+html[data-theme='excel'] .bingo-cell--drag {
+  box-shadow: 5px 5px 6px rgba(0, 0, 0, 0.1);
 }
 
 .bingo-footer-row {
@@ -656,11 +662,12 @@ button.bingo-cell {
 }
 
 html[data-theme='excel'] {
+  /* A_G2_bingo_01 */
   --bingo-subject: #5c5c5c;
   --bingo-sheet-bg: #fafafa;
   --bingo-sheet-border: #efefef;
   --bingo-cell-bg: #fdfdfd;
-  --bingo-cell-border: #eee;
+  --bingo-cell-border: #eeeeee;
   --bingo-cell-outer-border: #f4f4f4;
   --bingo-cell-text: #828282;
   --bingo-p1-bg: #e8f4fc;
@@ -668,13 +675,13 @@ html[data-theme='excel'] {
   --bingo-p2-bg: #ffebee;
   --bingo-p2-text: #e57373;
   --bingo-focus-ring: #4caf50;
-  --bingo-drag-border: #4caf50;
-  --bingo-drag-bg: #f1f8f4;
-  --bingo-drag-text: #2e7d32;
-  --bingo-hint: #4b7051;
-  --bingo-btn-bg: #e8f5e9;
-  --bingo-btn-border: #4caf50;
-  --bingo-btn-text: #2e7d32;
+  --bingo-drag-border: #a1d4b8;
+  --bingo-drag-bg: #fdfdfd;
+  --bingo-drag-text: #4c745e;
+  --bingo-hint: #518d6c;
+  --bingo-btn-bg: #f3faf2;
+  --bingo-btn-border: #2d9b5e;
+  --bingo-btn-text: #4b7051;
   --bingo-btn-idle-bg: #ffffff;
   --bingo-btn-idle-border: #e8e8e8;
   --bingo-btn-idle-text: #ababab;
@@ -735,4 +742,17 @@ html[data-theme='vscode'] {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 4px;
+}
+
+/* A_G2_bingo_01: 플레이어 행 타이포를 셀과 동일 10px 계열로 */
+html[data-theme='excel'] .bingo-player-name {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05px;
+  max-width: 200px;
+}
+
+html[data-theme='excel'] .bingo-player-color-dot {
+  width: 8px;
+  height: 8px;
 }

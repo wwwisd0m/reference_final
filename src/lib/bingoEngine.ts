@@ -262,19 +262,21 @@ function flatCellIndex(r: number, c: number): number {
   return r * BINGO_SIZE + c;
 }
 
-/** 한 플레이어의 25칸 배치(flat)에서 color 가 한 줄을 채웠는지 */
+/**
+ * 해당 레이아웃(flat)에서 가로·세로·대각 한 줄의 5칸 단어가
+ * 모두 `markedByIndex`상 선택됨(0이 아님)인지 — 누가 찍었는지(색 1/2)는 보지 않음.
+ */
 export function checkLayoutLineWin(
   flat25: string[],
   markedByIndex: (0 | 1 | 2)[],
-  subjectId: BingoSubjectId,
-  color: 1 | 2
+  subjectId: BingoSubjectId
 ): boolean {
   if (flat25.length !== BINGO_CELL_COUNT) return false;
   return LINE_INDEXES.some((line) =>
     line.every(([r, c]) => {
       const w = flat25[flatCellIndex(r, c)];
       const idx = wordToCanonicalIndex(subjectId, w);
-      return idx >= 0 && normalizeMarkCell(markedByIndex[idx]) === color;
+      return idx >= 0 && normalizeMarkCell(markedByIndex[idx]) !== 0;
     })
   );
 }
@@ -325,10 +327,9 @@ function applyEmptyPassAdvance(state: BingoGameState, passer: 1 | 2): BingoGameS
 }
 
 /**
- * 승패 규칙: 같은 단어 마크는 양쪽 판에 동일(인덱스)하게 반영됨.
- * 호스트(색 1)는 hostLayoutFlat 기준으로, 게스트(색 2)는 guestLayoutFlat 기준으로
- * 가로·세로·대각 한 줄이 자기 색으로만 채워졌는지 본다.
- * 한쪽만 완성 → 그쪽 승; 동시 완성 → 무승부(line); 칸이 가득 차면 무승부(full).
+ * 승패 규칙: 선택된 단어는 `markedByIndex`에 반영되어 양쪽 판에 같은 단어가 같은 색으로 보임.
+ * 줄 완성 판정은 호스트 판·게스트 판 각각에 대해, 그 줄 5칸이 모두 선택됐는지(색 무관)로만 본다.
+ * 호스트 판만 완성 → 1 승, 게스트 판만 완성 → 2 승, 동시 → 무승부(line), 칸 가득 → 무승부(full).
  */
 function resolveWinAfterMark(
   state: BingoGameState,
@@ -338,11 +339,11 @@ function resolveWinAfterMark(
   const { subjectId, hostLayoutFlat, guestLayoutFlat } = state;
   const p1 =
     hostLayoutFlat && validateLayoutFlatForSubject(hostLayoutFlat, subjectId)
-      ? checkLayoutLineWin(hostLayoutFlat, marks, subjectId, 1)
+      ? checkLayoutLineWin(hostLayoutFlat, marks, subjectId)
       : false;
   const p2 =
     guestLayoutFlat && validateLayoutFlatForSubject(guestLayoutFlat, subjectId)
-      ? checkLayoutLineWin(guestLayoutFlat, marks, subjectId, 2)
+      ? checkLayoutLineWin(guestLayoutFlat, marks, subjectId)
       : false;
   const base: BingoGameState = {
     ...state,

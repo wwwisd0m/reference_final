@@ -543,15 +543,14 @@ function flatCellIndex(r: number, c: number): number {
 function checkLayoutLineWin(
   flat25: string[],
   markedByIndex: (0 | 1 | 2)[],
-  subjectId: BingoSubjectId,
-  color: 1 | 2
+  subjectId: BingoSubjectId
 ): boolean {
   if (flat25.length !== BINGO_CELL_COUNT) return false;
   return LINE_INDEXES.some((line) =>
     line.every(([r, c]) => {
       const w = flat25[flatCellIndex(r, c)];
       const idx = wordToCanonicalIndex(subjectId, w);
-      return idx >= 0 && normalizeMarkCell(markedByIndex[idx]) === color;
+      return idx >= 0 && normalizeMarkCell(markedByIndex[idx]) !== 0;
     })
   );
 }
@@ -595,11 +594,11 @@ function resolveWinAfterMark(
   const { subjectId, hostLayoutFlat, guestLayoutFlat } = state;
   const p1 =
     hostLayoutFlat && validateLayoutFlatForSubject(hostLayoutFlat, subjectId)
-      ? checkLayoutLineWin(hostLayoutFlat, marks, subjectId, 1)
+      ? checkLayoutLineWin(hostLayoutFlat, marks, subjectId)
       : false;
   const p2 =
     guestLayoutFlat && validateLayoutFlatForSubject(guestLayoutFlat, subjectId)
-      ? checkLayoutLineWin(guestLayoutFlat, marks, subjectId, 2)
+      ? checkLayoutLineWin(guestLayoutFlat, marks, subjectId)
       : false;
   const base: BingoGameState = {
     ...state,
