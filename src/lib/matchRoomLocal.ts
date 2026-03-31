@@ -1,5 +1,6 @@
 import { sanitizeNickname } from './nickname';
-import type { BingoGameState } from './bingoEngine';
+import type { BingoGameState, BingoSubjectId } from './bingoEngine';
+import { pickRandomSubject } from './bingoEngine';
 import type { OmokGameState } from './omokEngine';
 
 /** omokRematch / 서버 JSON과 구조만 맞춤 (순환 import 방지) */
@@ -17,6 +18,8 @@ export type RoomState = {
   gameId: string;
   status: RoomStatus;
   updatedAt: number;
+  /** 빙고: 호스트 방 생성 시 정해진 주제 (원격 API `StoredRoom.bingoSubjectId` 와 동일 의미) */
+  bingoSubjectId?: BingoSubjectId | null;
   /** Vercel 등 원격 로비에서만 서버가 채움 */
   omok?: OmokGameState | null;
   bingo?: BingoGameState | null;
@@ -69,6 +72,7 @@ export function ensureHostRoom(roomId: string, hostNickname: string, gameId: str
       gameId,
       status: 'waiting',
       updatedAt: Date.now(),
+      bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
     });
     return;
   }
@@ -80,17 +84,24 @@ export function ensureHostRoom(roomId: string, hostNickname: string, gameId: str
       gameId,
       status: 'waiting',
       updatedAt: Date.now(),
+      bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
     });
     return;
   }
 
   if (existing.status === 'waiting') {
-    setRoom(roomId, {
+    const next: RoomState = {
       ...existing,
       hostNickname: host,
       gameId,
       updatedAt: Date.now(),
-    });
+    };
+    if (gameId !== 'bingo') {
+      next.bingoSubjectId = null;
+    } else if (existing.gameId !== 'bingo') {
+      next.bingoSubjectId = pickRandomSubject();
+    }
+    setRoom(roomId, next);
   }
 }
 

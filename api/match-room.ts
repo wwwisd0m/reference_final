@@ -345,8 +345,7 @@ function emptyMarked(): (0 | 1 | 2)[][] {
   );
 }
 
-function initialBingoState(): BingoGameState {
-  const subjectId = pickRandomSubject();
+function initialBingoStateForSubject(subjectId: BingoSubjectId): BingoGameState {
   return {
     subjectId,
     labels: buildShuffledGrid5(subjectId),
@@ -362,6 +361,10 @@ function initialBingoState(): BingoGameState {
     emptyPassStreak: 0,
     updatedAt: Date.now(),
   };
+}
+
+function initialBingoState(): BingoGameState {
+  return initialBingoStateForSubject(pickRandomSubject());
 }
 
 function flattenLabels(g: string[][]): string[] {
@@ -608,6 +611,8 @@ type StoredRoom = {
   gameId: string;
   status: RoomStatus;
   updatedAt: number;
+  /** 빙고 방: 호스트가 방을 만들 때 정해진 주제 — bingoEnsure 시 공통 단어 풀에 사용 */
+  bingoSubjectId: BingoSubjectId | null;
   omok: OmokGameState | null;
   bingo: BingoGameState | null;
   rematch: RematchState | null;
@@ -627,8 +632,11 @@ function sanitizeNick(raw: string): string {
 }
 
 function normalize(r: StoredRoom): StoredRoom {
+  const bingoSubjectId =
+    r.bingoSubjectId ?? (r.bingo ? r.bingo.subjectId : null) ?? null;
   return {
     ...r,
+    bingoSubjectId,
     omok: r.omok ?? null,
     bingo: r.bingo ?? null,
     rematch: r.rematch ?? null,
@@ -771,6 +779,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             gameId,
             status: 'waiting',
             updatedAt: Date.now(),
+            bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
             omok: null,
             bingo: null,
             rematch: null,
@@ -788,6 +797,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
             gameId,
             status: 'waiting',
             updatedAt: Date.now(),
+            bingoSubjectId: gameId === 'bingo' ? pickRandomSubject() : null,
             omok: null,
             bingo: null,
             rematch: null,
@@ -804,6 +814,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           gameId,
           updatedAt: Date.now(),
         };
+        if (gameId !== 'bingo') {
+          next.bingoSubjectId = null;
+        } else if (existing.gameId !== 'bingo') {
+          next.bingoSubjectId = pickRandomSubject();
+        }
         await save(roomId, next);
         res.status(200).json({ room: next });
         return;
@@ -854,6 +869,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           ...room,
           status: 'cancelled',
           updatedAt: Date.now(),
+          bingoSubjectId: null,
           omok: null,
           bingo: null,
           rematch: null,
@@ -957,8 +973,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           res.status(200).json({ room: room ?? null, ok: false });
           return;
         }
-        const bingo = room.bingo ?? initialBingoState();
-        const next: StoredRoom = { ...room, bingo, updatedAt: Date.now() };
+        const normalized = normalize(room);
+        const subjectId =
+          normalized.bingo?.subjectId ??
+          normalized.bingoSubjectId ??
+          pickRandomSubject();
+        const bingo = normalized.bingo ?? initialBingoStateForSubject(subjectId);
+        const next: StoredRoom = {
+          ...normalized,
+          bingo,
+          bingoSubjectId: bingo.subjectId,
+          updatedAt: Date.now(),
+        };
         await save(roomId, next);
         res.status(200).json({ room: next, ok: true });
         return;
@@ -1052,7 +1078,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           res.status(200).json({ room, ok: false });
           return;
         }
-        const next: StoredRoom = { ...room, bingo: initialBingoState(), updatedAt: Date.now() };
+        const subjectId = pickRandomSubject();
+        const next: StoredRoom = {
+          ...room,
+          bingo: initialBingoStateForSubject(subjectId),
+          bingoSubjectId: subjectId,
+          updatedAt: Date.now(),
+        };
         await save(roomId, next);
         res.status(200).json({ room: next, ok: true });
         return;

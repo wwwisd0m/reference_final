@@ -55,7 +55,8 @@ npm run preview  # dist 미리보기
 - `src/pages/` — 홈, 매칭, 오목, 빙고  
 - `src/lib/matchRoom*.ts` — 매칭 방 (로컬 / Vercel 원격)  
 - `src/lib/omokSync.ts`, `omokEngine.ts` — 오목 상태  
-- `api/match-room.ts` — Vercel API (오목 판정 로직 인라인 — `src/lib/omokEngine` 과 동기화 유지)  
+- `src/lib/bingoSync.ts`, `bingoEngine.ts` — 빙고 상태  
+- `api/match-room.ts` — Vercel API (오목·빙고 로직 인라인 — `src/lib/*Engine` 과 동기화 유지). **빙고**는 호스트가 `ensure`로 방을 만들 때 `bingoSubjectId`(과일/꽃/동물)를 한 번 정해 Redis에 두고, `bingoEnsure`는 그 주제로만 초기 판을 만들어 호스트·게스트가 같은 25단어 풀을 씁니다.  
 
 ---
 

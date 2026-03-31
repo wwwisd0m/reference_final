@@ -70,11 +70,12 @@ export function emptyMarked(): (0 | 1 | 2)[][] {
   );
 }
 
-export function initialBingoState(): BingoGameState {
-  const subjectId = pickRandomSubject();
+/** `subjectId` 생략 시 연습 모드용 랜덤 주제 */
+export function initialBingoState(subjectId?: BingoSubjectId): BingoGameState {
+  const id = subjectId ?? pickRandomSubject();
   return {
-    subjectId,
-    labels: buildShuffledGrid5(subjectId),
+    subjectId: id,
+    labels: buildShuffledGrid5(id),
     phase: 'setup',
     setupDeadline: Date.now() + BINGO_SETUP_MS,
     hostReady: false,
@@ -90,7 +91,7 @@ export function initialBingoState(): BingoGameState {
 }
 
 /** 종료 후 재대국 시 동일 진입점 */
-export const resetBingoState = initialBingoState;
+export const resetBingoState = (): BingoGameState => initialBingoState();
 
 export function flattenLabels(g: string[][]): string[] {
   return g.flat();

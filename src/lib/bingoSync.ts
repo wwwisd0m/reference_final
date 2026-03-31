@@ -9,6 +9,7 @@ import {
   bingoStateNeedsPersist,
   initialBingoState,
   normalizeBingoState,
+  pickRandomSubject,
   resolveBingoAll,
   type BingoGameState,
 } from './bingoEngine';
@@ -46,7 +47,14 @@ export async function ensureBingoGame(roomId: string): Promise<void> {
   const room = getRoom(roomId);
   if (!room || room.gameId !== 'bingo') return;
   if (room.bingo) return;
-  patchLocalRoomBingo(roomId, initialBingoState());
+  const subjectId = room.bingoSubjectId ?? pickRandomSubject();
+  const nextBingo = initialBingoState(subjectId);
+  setRoom(roomId, {
+    ...room,
+    bingo: nextBingo,
+    bingoSubjectId: subjectId,
+    updatedAt: Date.now(),
+  });
 }
 
 export async function tryBingoSetupGrid(roomId: string, labels: string[][]): Promise<boolean> {
@@ -114,7 +122,13 @@ export async function tryBingoReset(roomId: string): Promise<boolean> {
   }
   const room = getRoom(roomId);
   if (!room?.bingo || room.bingo.winner === 0) return false;
-  patchLocalRoomBingo(roomId, initialBingoState());
+  const subjectId = pickRandomSubject();
+  setRoom(roomId, {
+    ...room,
+    bingo: initialBingoState(subjectId),
+    bingoSubjectId: subjectId,
+    updatedAt: Date.now(),
+  });
   return true;
 }
 
